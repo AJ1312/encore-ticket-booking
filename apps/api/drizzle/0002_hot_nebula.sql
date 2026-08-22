@@ -1,0 +1,1 @@
+ALTER TYPE "public"."seat_state" ADD VALUE 'blocked';
