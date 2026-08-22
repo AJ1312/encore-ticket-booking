@@ -10,10 +10,11 @@ export type EncoreEvent = {
   description: string;
   image: string;
   featured?: boolean;
+  showId?: string;
 };
 
 export const encoreEvents: EncoreEvent[] = [
-  { slug: 'the-night-we-remember', title: 'The Night We Remember', kind: 'Events', date: '28 Aug', time: '8:00 PM', venue: 'Riverside Grounds', city: 'Mumbai', price: '₹1,499', description: 'One open-air stage, a handpicked line-up, and the kind of night that turns into a group chat name.', image: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85', featured: true },
+  { slug: 'the-night-we-remember', title: 'The Night We Remember', kind: 'Events', date: '28 Aug', time: '8:00 PM', venue: 'Riverside Grounds', city: 'Mumbai', price: '₹1,499', description: 'One open-air stage, a handpicked line-up, and the kind of night that turns into a group chat name.', image: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85', featured: true, showId: '55555555-5555-4555-8555-555555555555' },
   { slug: 'actually-im-fine', title: 'Actually, I’m Fine', kind: 'Comedy', date: '29 Aug', time: '7:30 PM', venue: 'The Habitat', city: 'Mumbai', price: '₹899', description: 'A sharp, warm night of new comedy from the voices you will quote all week.', image: 'https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&w=1000&q=85' },
   { slug: 'signals-after-dark', title: 'Signals / After Dark', kind: 'Events', date: '30 Aug', time: '10:00 PM', venue: 'AntiSocial', city: 'Mumbai', price: '₹1,200', description: 'Late-night electronic sets, soft lights, and a room built for losing track of time.', image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1000&q=85' },
   { slug: 'midnight-in-marigold', title: 'Midnight in Marigold', kind: 'Movies', date: 'Today', time: '9:45 PM', venue: 'PVR Lower Parel', city: 'Mumbai', price: '₹280', description: 'A late screening for people who like their stories atmospheric and their popcorn salty.', image: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1000&q=85' },
