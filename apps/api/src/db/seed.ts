@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import * as argon2 from 'argon2';
+import { eq } from 'drizzle-orm';
 import { db } from './client';
 import { events, seats, showSeats, shows, users, venues } from './schema';
 
@@ -14,7 +15,7 @@ async function run(){
  await db.insert(shows).values({id:ids.show,eventId:ids.event,venueId:ids.venue,startsAt:new Date('2026-08-28T14:30:00.000Z')}).onConflictDoNothing();
  const inventory=Array.from({length:72},(_,i)=>({venueId:ids.venue,section:i<24?'Premium':i<48?'Standard':'Economy',rowLabel:String.fromCharCode(65+Math.floor(i/12)),seatNumber:i%12+1,category:i<24?'Premium':i<48?'Standard':'Economy',pricePaise:i<24?149900:i<48?99900:69900,x:i%12,y:Math.floor(i/12)}));
  await db.insert(seats).values(inventory).onConflictDoNothing();
- const stored=await db.select({id:seats.id}).from(seats);
+ const stored=await db.select({id:seats.id}).from(seats).where(eq(seats.venueId,ids.venue));
  await db.insert(showSeats).values(stored.map(s=>({showId:ids.show,seatId:s.id}))).onConflictDoNothing();
  console.log(`Seeded ${stored.length} seats for show ${ids.show}`); process.exit(0);
 }

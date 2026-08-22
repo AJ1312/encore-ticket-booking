@@ -8,7 +8,10 @@ import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 import { getEvent } from '@/lib/events';
 
-const seats = Array.from({ length: 72 }, (_, index) => ({ id: index, row: String.fromCharCode(65 + Math.floor(index / 12)), number: index % 12 + 1, price: index < 24 ? 1499 : index < 48 ? 999 : 699, status: [7, 8, 20, 21, 50, 51].includes(index) ? 'sold' : 'available' }));
+// The API/database is the eventual source of truth. Keep the prototype's initial
+// inventory fully available instead of presenting fabricated booked seats.
+type SeatStatus = 'available' | 'sold';
+const seats = Array.from({ length: 72 }, (_, index): { id: number; row: string; number: number; price: number; status: SeatStatus } => ({ id: index, row: String.fromCharCode(65 + Math.floor(index / 12)), number: index % 12 + 1, price: index < 24 ? 1499 : index < 48 ? 999 : 699, status: 'available' }));
 
 export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: string }) {
   const router = useRouter();
