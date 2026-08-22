@@ -5,7 +5,9 @@ import { events, seats, showSeats, shows, users, venues } from './schema';
 
 const ids={admin:'11111111-1111-4111-8111-111111111111',organiser:'22222222-2222-4222-8222-222222222222',venue:'33333333-3333-4333-8333-333333333333',event:'44444444-4444-4444-8444-444444444444',show:'55555555-5555-4555-8555-555555555555'};
 async function run(){
- const password=await argon2.hash(process.env.SEED_PASSWORD||'EncoreDemo!2026');
+ const seedPassword=process.env.SEED_PASSWORD;
+ if(!seedPassword)throw new Error('SEED_PASSWORD must be set before running the seed command');
+ const password=await argon2.hash(seedPassword);
  await db.insert(users).values([{id:ids.admin,name:'Encore Admin',email:'admin@encore.local',passwordHash:password,role:'admin'},{id:ids.organiser,name:'Encore Organiser',email:'organiser@encore.local',passwordHash:password,role:'organiser'}]).onConflictDoNothing();
  await db.insert(venues).values({id:ids.venue,name:'Riverside Grounds',city:'Mumbai',address:'Bandra West, Mumbai',timezone:'Asia/Kolkata'}).onConflictDoNothing();
  await db.insert(events).values({id:ids.event,organiserId:ids.organiser,title:'The Night We Remember',description:'An intimate live set under the city lights.',type:'concert',posterUrl:'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85'}).onConflictDoNothing();

@@ -27,7 +27,7 @@ pnpm dev
 
 Customer: http://localhost:3000 · API: http://localhost:4000/api/health
 
-Seed accounts use `SEED_PASSWORD` (default `EncoreDemo!2026`) for the admin and organiser addresses created by the seed command. Change it before any shared deployment.
+Seed accounts use the explicitly configured `SEED_PASSWORD` for the admin and organiser addresses created by the seed command. The seed command refuses to run when it is missing; never commit the real value.
 
 ## Deployment
 
