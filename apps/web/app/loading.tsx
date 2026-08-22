@@ -1,0 +1,1 @@
+export default function Loading() { return <main className="auth-page"><div className="auth-brand">ENCORE<span>.</span></div><section className="auth-card"><span className="eyebrow">Encore / Loading</span><h1>Opening<br/><em>the room.</em></h1></section></main>; }

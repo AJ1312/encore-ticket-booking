@@ -1,0 +1,3 @@
+'use client';
+import Link from 'next/link';
+export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) { return <main className="auth-page"><div className="auth-brand">ENCORE<span>.</span></div><section className="auth-card"><span className="eyebrow">500 / Something went wrong</span><h1>Let’s try<br/><em>that again.</em></h1><p className="auth-sub">The page hit an unexpected moment. Your booking state has not been changed.</p><div className="hero-actions"><button className="coral-button" onClick={() => reset()}>Retry</button><Link href="/events" className="ghost-button">Back to guide</Link></div></section></main>; }

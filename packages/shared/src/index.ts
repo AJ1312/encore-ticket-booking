@@ -1,0 +1,9 @@
+import { z } from 'zod';
+export const roleSchema=z.enum(['customer','organiser','admin']);
+export const loginSchema=z.object({email:z.string().email(),password:z.string().min(8)});
+export const registerSchema=z.object({name:z.string().min(2).max(80),email:z.string().email(),password:z.string().min(8)});
+export const holdSchema=z.object({seatIds:z.array(z.string().uuid()).min(1).max(8)});
+export const confirmSchema=z.object({seatIds:z.array(z.string().uuid()).min(1).max(8),idempotencyKey:z.string().min(16).max(128)});
+export const waitlistSchema=z.object({showId:z.string().uuid(),category:z.string().min(1).max(40)});
+export type Role=z.infer<typeof roleSchema>;
+export type Session={id:string,name:string,email:string,role:Role};

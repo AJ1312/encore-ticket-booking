@@ -1,0 +1,5 @@
+'use client';
+import Link from 'next/link';
+import { ArrowLeft, Mail } from 'lucide-react';
+import { useState } from 'react';
+export default function ForgotPasswordPage() { const [sent, setSent] = useState(false); return <main className="auth-page"><Link href="/login" className="auth-back"><ArrowLeft size={15}/> Back to sign in</Link><div className="auth-brand">ENCORE<span>.</span></div><section className="auth-card">{sent ? <><span className="eyebrow">Check your inbox</span><h1>Link<br/><em>sent.</em></h1><p className="auth-sub">If an account exists for that email, we’ve sent a reset link.</p></> : <><span className="eyebrow">Account recovery</span><h1>Find your<br/><em>way back.</em></h1><p className="auth-sub">Enter your email and we’ll send a secure reset link.</p><form onSubmit={event => { event.preventDefault(); setSent(true); }}><label>Email<input required type="email" placeholder="you@example.com"/></label><button className="coral-button"><Mail size={15}/> Send reset link</button></form></>}</section></main>; }

@@ -1,0 +1,6 @@
+import Link from 'next/link';
+import { ArrowUpRight, Plus } from 'lucide-react';
+import { PortalFooter } from '@/components/portal-footer';
+import { PortalNav } from '@/components/portal-nav';
+const venues = [{ name: 'Riverside Grounds', city: 'Mumbai', layout: 'Stadium · 4,800 seats', status: 'Published' }, { name: 'The Habitat', city: 'Mumbai', layout: 'Theatre · 240 seats', status: 'Published' }, { name: 'Maison PVR', city: 'Mumbai', layout: 'Cinema · 180 seats', status: 'Review' }];
+export default function AdminVenuesPage() { return <main className="portal-page admin"><PortalNav portal="admin"/><section className="portal-content compact"><div className="page-toolbar"><div><span className="eyebrow">System control / Venues</span><h1>Places that<br/><em>hold a night.</em></h1></div><Link href="/admin/venues/new" className="coral-button"><Plus size={15}/> Add venue</Link></div><div className="event-table admin-table">{venues.map(venue => <div className="event-table-row" key={venue.name}><span>◌</span><div><strong>{venue.name}</strong><small>{venue.city} · {venue.layout}</small></div><b>{venue.status}</b><Link href="/admin/venues/riverside-grounds"><ArrowUpRight size={16}/></Link></div>)}</div></section><PortalFooter/></main>; }

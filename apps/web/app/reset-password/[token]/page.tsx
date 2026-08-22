@@ -1,0 +1,5 @@
+'use client';
+import Link from 'next/link';
+import { ArrowLeft, Check } from 'lucide-react';
+import { useState } from 'react';
+export default function ResetPasswordPage() { const [done, setDone] = useState(false); return <main className="auth-page"><Link href="/login" className="auth-back"><ArrowLeft size={15}/> Back to sign in</Link><div className="auth-brand">ENCORE<span>.</span></div><section className="auth-card">{done ? <><span className="eyebrow">Password updated</span><h1>You’re<br/><em>back in.</em></h1><Link className="coral-button" href="/login"><Check size={15}/> Sign in</Link></> : <><span className="eyebrow">Create a new password</span><h1>Keep it<br/><em>secure.</em></h1><form onSubmit={event => { event.preventDefault(); setDone(true); }}><label>New password<input required minLength={8} type="password"/></label><label>Confirm password<input required minLength={8} type="password"/></label><button className="coral-button">Update password <Check size={15}/></button></form></>}</section></main>; }

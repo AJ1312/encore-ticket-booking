@@ -1,0 +1,5 @@
+import Link from 'next/link';
+import { ArrowLeft, ArrowUpRight } from 'lucide-react';
+import { PortalFooter } from '@/components/portal-footer';
+import { PortalNav } from '@/components/portal-nav';
+export default function OrganiserEventsPage() { return <main className="portal-page organiser"><PortalNav portal="organiser"/><section className="portal-content compact"><Link href="/organiser" className="back-link"><ArrowLeft size={15}/> Overview</Link><span className="eyebrow">Organiser workspace / Events</span><h1>Your<br/><em>programme.</em></h1><div className="event-table">{['The Night We Remember','Actually, I’m Fine','Signals / After Dark','Midnight in Marigold'].map((event, index) => <div className="event-table-row" key={event}><span>0{index + 1}</span><div><strong>{event}</strong><small>{['28 Aug · Riverside Grounds','29 Aug · The Habitat','30 Aug · AntiSocial','Today · PVR Lower Parel'][index]}</small></div><b>{index === 0 ? 'On sale' : index === 1 ? 'Almost full' : 'Draft'}</b><ArrowUpRight size={16}/></div>)}</div><Link href="/organiser" className="portal-link">Back to overview <ArrowUpRight size={15}/></Link></section><PortalFooter/></main>; }

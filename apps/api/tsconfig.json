@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2022","module":"CommonJS","moduleResolution":"Node","outDir":"dist","strict":true,"esModuleInterop":true,"skipLibCheck":true,"experimentalDecorators":true,"emitDecoratorMetadata":true,"baseUrl":".","paths":{"@encore/shared":["../../packages/shared/src/index.ts"]}},"include":["src/**/*.ts"]}

@@ -1,0 +1,6 @@
+'use client';
+import Link from 'next/link';
+import { Check, Download, Printer } from 'lucide-react';
+import { PortalFooter } from '@/components/portal-footer';
+import { PortalNav } from '@/components/portal-nav';
+export default function ConfirmationPage() { return <main className="confirmation-page"><PortalNav /><section className="confirmation-wrap"><div className="confirmation-mark"><Check size={26}/></div><span className="eyebrow">Booking confirmed</span><h1>Your ticket<br/><em>is waiting.</em></h1><p className="confirmation-sub">Thank you for choosing Encore. We’ve saved the details in your profile.</p><article className="ticket-stub"><div><span className="ticket-status">Exclusive event</span><h2>The Night We Remember</h2><p>Riverside Grounds, Mumbai</p><div className="stub-meta"><span><small>Date</small>28 AUG 2026</span><span><small>Time</small>20:00 IST</span><span><small>Seats</small>A8, A9</span></div></div><div className="ticket-qr"><div className="qr-grid"/><small>REF // 88A-94B</small></div></article><div className="confirmation-actions"><Link href="/bookings" className="coral-button"><Download size={16}/> Add to tickets</Link><button className="ghost-button" onClick={() => window.print()}><Printer size={16}/> Print receipt</button></div></section><PortalFooter /></main>; }

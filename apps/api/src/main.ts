@@ -1,0 +1,49 @@
+import 'dotenv/config';
+import { NestFactory } from '@nestjs/core';
+import { Body, Controller, Get, HttpException, Injectable, Module, Param, Post, Req, Res, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
+import { APP_GUARD, Reflector } from '@nestjs/core';
+import { CanActivate, ExecutionContext, SetMetadata } from '@nestjs/common';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import * as argon2 from 'argon2';
+import * as jwt from 'jsonwebtoken';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import type { Request, Response } from 'express';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { confirmSchema, holdSchema, loginSchema, registerSchema, roleSchema, waitlistSchema, type Role } from '@encore/shared';
+import { db } from './db/client';
+import { bookingSeats, bookings, jobs, refreshTokens, seats, showSeats, users, waitlistEntries } from './db/schema';
+
+type AccessPayload={sub:string;name:string;email:string;role:Role};
+declare global { namespace Express { interface Request { user?: AccessPayload } } }
+export const IS_PUBLIC_KEY='isPublic'; export const Public=()=>SetMetadata(IS_PUBLIC_KEY,true);
+const secret=()=>process.env.JWT_ACCESS_SECRET||'local-development-secret';
+const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
+const accessToken=(u:{id:string;name:string;email:string;role:Role})=>jwt.sign({sub:u.id,name:u.name,email:u.email,role:u.role},secret(),{expiresIn:'15m'});
+function setCookie(res:Response,name:string,value:string,maxAge:number){res.cookie(name,value,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',maxAge,path:'/'})}
+function auth(req:Request){if(!req.user)throw new UnauthorizedException();return req.user}
+
+@Injectable() class AuthGuard implements CanActivate{constructor(private reflector:Reflector=new Reflector()){}canActivate(ctx:ExecutionContext){if(this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY,[ctx.getHandler(),ctx.getClass()]))return true;const req=ctx.switchToHttp().getRequest<Request>();const raw=req.cookies?.encore_access;if(!raw)throw new UnauthorizedException();try{req.user=jwt.verify(raw,secret()) as AccessPayload;return true}catch{throw new UnauthorizedException()}}}
+
+@Controller('api')
+class AppController{
+ @Public() @Get('health') async health(){try{await db.execute(sql`select 1`);return {status:'ok',service:'encore-api',database:true}}catch{return {status:'degraded',service:'encore-api',database:false}}}
+ @Public() @Post('auth/register') async register(@Body() body:unknown,@Res({passthrough:true}) res:Response){const input=registerSchema.safeParse(body);if(!input.success)throw new BadRequestException('Invalid registration details');const email=input.data.email.toLowerCase();const existing=await db.select({id:users.id}).from(users).where(eq(users.email,email)).limit(1);if(existing[0])throw new ConflictException('Email already registered');const user=(await db.insert(users).values({name:input.data.name,email,passwordHash:await argon2.hash(input.data.password),role:'customer'}).returning({id:users.id,name:users.name,email:users.email,role:users.role}))[0];return this.issue(user,res)}
+ @Public() @Post('auth/login') async login(@Body() body:unknown,@Res({passthrough:true}) res:Response){const input=loginSchema.safeParse(body);if(!input.success)throw new UnauthorizedException('Invalid email or password');const row=(await db.select().from(users).where(eq(users.email,input.data.email.toLowerCase())).limit(1))[0];if(!row||!(await argon2.verify(row.passwordHash,input.data.password)))throw new UnauthorizedException('Invalid email or password');return this.issue({id:row.id,name:row.name,email:row.email,role:row.role},res)}
+ @Post('auth/refresh') async refresh(@Req() req:Request,@Res({passthrough:true}) res:Response){const raw=req.cookies?.encore_refresh;if(!raw)throw new UnauthorizedException();const stored=(await db.select({id:refreshTokens.id,userId:refreshTokens.userId}).from(refreshTokens).where(and(eq(refreshTokens.tokenHash,digest(raw)),gt(refreshTokens.expiresAt,new Date()),isNull(refreshTokens.revokedAt))).limit(1))[0];if(!stored)throw new UnauthorizedException();await db.update(refreshTokens).set({revokedAt:new Date()}).where(eq(refreshTokens.id,stored.id));const user=(await db.select({id:users.id,name:users.name,email:users.email,role:users.role}).from(users).where(eq(users.id,stored.userId)).limit(1))[0];return this.issue(user,res)}
+ @Post('auth/logout') async logout(@Req() req:Request,@Res({passthrough:true}) res:Response){const raw=req.cookies?.encore_refresh;if(raw)await db.update(refreshTokens).set({revokedAt:new Date()}).where(eq(refreshTokens.tokenHash,digest(raw)));res.clearCookie('encore_access',{path:'/'});res.clearCookie('encore_refresh',{path:'/'});return {ok:true}}
+ @Get('auth/me') me(@Req() req:Request){const u=auth(req);return {session:{id:u.sub,name:u.name,email:u.email,role:roleSchema.parse(u.role)}}}
+ @Get('shows/:showId/seats') async showSeats(@Param('showId') showId:string){const result=await db.select({id:showSeats.id,row:seats.rowLabel,number:seats.seatNumber,category:seats.category,pricePaise:sql<number>`coalesce(${showSeats.heldPricePaise},${seats.pricePaise})`,status:sql<string>`case when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' else ${showSeats.status} end`}).from(showSeats).innerJoin(seats,eq(showSeats.seatId,seats.id)).where(eq(showSeats.showId,showId));return {seats:result}}
+ @Post('shows/:showId/hold') async hold(@Param('showId') showId:string,@Body() body:unknown,@Req() req:Request){const u=auth(req);const input=holdSchema.safeParse(body);if(!input.success)throw new BadRequestException('Select one to eight seats');const heldUntil=new Date(Date.now()+Number(process.env.SEAT_HOLD_TTL_SECONDS||600)*1000);return db.transaction(async tx=>{const held:string[]=[];for(const seatId of input.data.seatIds){const price=(await tx.select({price:seats.pricePaise}).from(seats).where(eq(seats.id,seatId)).limit(1))[0]?.price;if(price===undefined)throw new ConflictException('Seat does not exist');const result=await tx.update(showSeats).set({status:'held',heldByUserId:u.sub,heldUntil,heldPricePaise:price,version:sql`${showSeats.version}+1`}).where(and(eq(showSeats.id,seatId),eq(showSeats.showId,showId),sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND ${showSeats.heldUntil}<=now()))`)).returning({id:showSeats.id});if(!result[0])throw new ConflictException('One or more seats were just taken');held.push(seatId)}return {seatIds:held,heldUntil}})}
+ @Post('bookings/confirm') async confirm(@Body() body:unknown,@Req() req:Request){const u=auth(req);const input=confirmSchema.safeParse(body);if(!input.success)throw new BadRequestException('Invalid booking request');return db.transaction(async tx=>{const previous=(await tx.select({id:bookings.id,bookingRef:bookings.bookingRef}).from(bookings).where(and(eq(bookings.userId,u.sub),eq(bookings.idempotencyKey,input.data.idempotencyKey))).limit(1))[0];if(previous)return previous;const held=await tx.select({id:showSeats.id,showId:showSeats.showId,price:showSeats.heldPricePaise}).from(showSeats).where(and(inArray(showSeats.id,input.data.seatIds),eq(showSeats.heldByUserId,u.sub),eq(showSeats.status,'held'),gt(showSeats.heldUntil,new Date()))).for('update');if(held.length!==input.data.seatIds.length)throw new ConflictException('Your seat hold expired or is no longer yours');if(held.some(seat=>seat.showId!==held[0].showId))throw new ConflictException('All seats must belong to the same show');const total=held.reduce((sum,s)=>sum+(s.price||0),0);const ref=`ENC-${randomUUID().slice(0,8).toUpperCase()}`;const created=(await tx.insert(bookings).values({userId:u.sub,showId:held[0].showId,totalPaise:total,bookingRef:ref,idempotencyKey:input.data.idempotencyKey}).returning({id:bookings.id,bookingRef:bookings.bookingRef}))[0];await tx.insert(bookingSeats).values(held.map(s=>({bookingId:created.id,showSeatId:s.id,pricePaise:s.price||0})));await tx.update(showSeats).set({status:'booked',heldByUserId:null,heldUntil:null,heldPricePaise:null,version:sql`${showSeats.version}+1`}).where(inArray(showSeats.id,input.data.seatIds));return created})}
+ @Post('waitlist') async waitlist(@Body() body:unknown,@Req() req:Request){const u=auth(req);const input=waitlistSchema.safeParse(body);if(!input.success)throw new BadRequestException('Invalid waitlist request');const entry=(await db.insert(waitlistEntries).values({showId:input.data.showId,category:input.data.category,userId:u.sub}).returning({id:waitlistEntries.id,status:waitlistEntries.status}))[0];return entry}
+ private async issue(u:{id:string;name:string;email:string;role:Role},res:Response){const refresh=randomBytes(48).toString('base64url');await db.insert(refreshTokens).values({userId:u.id,tokenHash:digest(refresh),expiresAt:new Date(Date.now()+30*24*60*60*1000)});setCookie(res,'encore_access',accessToken(u),15*60*1000);setCookie(res,'encore_refresh',refresh,30*24*60*60*1000);return {session:{id:u.id,name:u.name,email:u.email,role:u.role}}}
+}
+@Module({imports:[ThrottlerModule.forRoot([{ttl:60000,limit:100}])],controllers:[AppController],providers:[{provide:APP_GUARD,useClass:AuthGuard},{provide:APP_GUARD,useClass:ThrottlerGuard}]}) class AppModule{}
+async function bootstrap(){
+  if(process.env.NODE_ENV==='production'&&(!process.env.DATABASE_URL||!process.env.JWT_ACCESS_SECRET||process.env.JWT_ACCESS_SECRET.length<32))throw new Error('DATABASE_URL and a 32+ character JWT_ACCESS_SECRET are required in production');
+  const app=await NestFactory.create(AppModule);
+  app.enableCors({origin:process.env.FRONTEND_URL||'http://localhost:3000',credentials:true});
+  app.use(require('cookie-parser')());
+  await app.listen(Number(process.env.PORT)||4000,'0.0.0.0')
+}
+bootstrap();

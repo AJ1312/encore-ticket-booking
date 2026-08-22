@@ -1,0 +1,3 @@
+import { PortalFooter } from '@/components/portal-footer';
+import { PortalNav } from '@/components/portal-nav';
+export default function AdminUsersPage() { return <main className="portal-page admin"><PortalNav portal="admin"/><section className="portal-content compact"><span className="eyebrow">System control / Users</span><h1>People in<br/><em>the room.</em></h1><div className="event-table admin-table">{[['Aarav Mehta','customer','Active'],['Maya Singh','organiser','Active'],['Admin Encore','admin','Protected']].map(([name, role, status]) => <div className="event-table-row" key={name}><span>◌</span><div><strong>{name}</strong><small>{role}</small></div><b>{status}</b><span>⋯</span></div>)}</div></section><PortalFooter/></main>; }

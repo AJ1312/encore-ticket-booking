@@ -1,0 +1,5 @@
+import Link from 'next/link';
+import { ArrowLeft, ArrowUpRight } from 'lucide-react';
+import { PortalFooter } from '@/components/portal-footer';
+import { PortalNav } from '@/components/portal-nav';
+export default async function VenuePage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; return <main className="portal-page admin"><PortalNav portal="admin"/><section className="portal-content compact"><Link href="/admin/venues" className="back-link"><ArrowLeft size={15}/> Venues</Link><span className="eyebrow">Venue / {id}</span><h1>Riverside<br/><em>Grounds.</em></h1><div className="admin-cards"><section className="portal-panel"><span className="eyebrow">Venue details</span><h2>Published and ready.</h2><p>Mumbai · Asia/Kolkata · 4,800 capacity</p><Link href={`/admin/venues/${id}/layout`}>Open layout builder <ArrowUpRight size={15}/></Link></section><section className="portal-panel"><span className="eyebrow">Upcoming shows</span><h2>01 on sale.</h2><p>The Night We Remember · 28 Aug 2026 · 68% sold.</p><Link href="/organiser/events">View programme <ArrowUpRight size={15}/></Link></section></div></section><PortalFooter/></main>; }
