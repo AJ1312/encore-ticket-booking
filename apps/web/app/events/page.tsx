@@ -7,6 +7,8 @@ import { useSearchParams } from 'next/navigation';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { encoreEvents } from '@/lib/events';
+import type { EncoreEvent } from '@/lib/events';
+import { apiJson } from '@/lib/api';
 
 const filters = ['For you', 'Events', 'Movies', 'Dining', 'Comedy'];
 
@@ -16,18 +18,20 @@ function EventsContent() {
   const selected = rawKind ? rawKind.charAt(0).toUpperCase() + rawKind.slice(1) : 'For you';
   const city = params.get('city') || 'Mumbai';
   const [search, setSearch] = useState('');
+  const [catalog, setCatalog] = useState<EncoreEvent[]>(encoreEvents);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState('Any date');
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return encoreEvents.filter(event => {
+    return catalog.filter(event => {
       const kindMatch = selected === 'For you' || event.kind.toLowerCase() === selected.toLowerCase();
       const searchMatch = !term || `${event.title} ${event.venue} ${event.kind}`.toLowerCase().includes(term);
       const dateMatch = dateFilter === 'Any date' || (dateFilter === 'Today' ? event.date === 'Today' : dateFilter === 'This weekend' ? ['28 Aug', '29 Aug', '30 Aug'].includes(event.date) : true);
       return kindMatch && searchMatch && dateMatch;
     });
-  }, [dateFilter, search, selected]);
+  }, [catalog, dateFilter, search, selected]);
+  useEffect(() => { void apiJson<{ events: Array<{ title: string; description: string; type: string; posterUrl: string; showId: string; startsAt: string; venue: string; city: string }> }>('/events').then(result => { const next = result.events.map(item => { const known = encoreEvents.find(event => event.title === item.title); const date = new Date(item.startsAt); const kind = item.type === 'movie' ? 'Movies' : item.type === 'comedy' ? 'Comedy' : 'Events'; return { ...(known || { slug: item.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''), price: '₹—', image: item.posterUrl, featured: false }), title: item.title, description: item.description, kind, venue: item.venue, city: item.city, showId: item.showId, date: date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' }), time: date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' }) } as EncoreEvent; }); setCatalog(next); }).catch(() => { /* keep local preview data when the API is unavailable */ }); }, []);
   useEffect(() => {
     const focusRequested = params.get('focus') === 'search';
     const onShortcut = (event: KeyboardEvent) => {

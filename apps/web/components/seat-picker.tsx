@@ -8,6 +8,8 @@ import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 import { getEvent } from '@/lib/events';
 import { apiJson } from '@/lib/api';
+import { API_URL } from '@/lib/api';
+import { io } from 'socket.io-client';
 
 // The API/database is the eventual source of truth. Keep the prototype's initial
 // inventory fully available instead of presenting fabricated booked seats.
@@ -26,6 +28,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
   const [zoom, setZoom] = useState(100);
   const total = useMemo(() => selected.reduce((sum, id) => sum + (seats.find(seat => seat.id === id)?.pricePaise || 0), 0), [selected, seats]);
   useEffect(() => { if (!showId) { setError('This show is not connected to a live inventory yet.'); setLoading(false); return; } void apiJson<{ seats: Seat[] }>(`/shows/${showId}/seats`).then(result => setSeats(result.seats)).catch(() => setError('Seat inventory is temporarily unavailable. Please try again.')).finally(() => setLoading(false)); }, [showId]);
+  useEffect(() => { if (!showId) return; const socket = io(`${API_URL}/realtime`, { withCredentials: true }); socket.emit('join-show', showId); socket.on('seat-updated', () => { void apiJson<{ seats: Seat[] }>(`/shows/${showId}/seats`).then(result => { setSeats(result.seats); setSelected(current => current.filter(id => result.seats.some(seat => seat.id === id && seat.status === 'available'))); }); }); return () => { socket.disconnect(); }; }, [showId]);
   function toggle(id: string) { const seat = seats.find(value => value.id === id); if (!seat || seat.status !== 'available') return; setSelected(current => current.includes(id) ? current.filter(value => value !== id) : current.length < 8 ? [...current, id] : current); }
   function continueToCheckout() {
     if (!selected.length) return;
