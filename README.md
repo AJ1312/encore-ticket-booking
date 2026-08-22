@@ -31,7 +31,7 @@ Seed accounts use the explicitly configured `SEED_PASSWORD` for the admin and or
 
 ## Deployment
 
-Deploy the web app to Vercel and the API to Render as one Node web service. Keep the repository root as the Render service root so the pnpm workspace lockfile is available. The checked-in `render.yaml` builds the API from the workspace and runs migrations before startup.
+Deploy the web app to Vercel and the API to Render as one Node web service. Keep the repository root as the Render service root so the pnpm workspace lockfile is available. The checked-in `render.yaml` pins Node 22, uses Render's existing pnpm installation, builds the API from the workspace, and runs migrations before startup.
 
 Set these Render variables: `DATABASE_URL`, `JWT_ACCESS_SECRET` (32+ random characters), `FRONTEND_URL`, and `NODE_ENV=production`. Set `NEXT_PUBLIC_API_URL` in Vercel. Run migrations as a controlled release step before enabling traffic. Render Free is suitable for a portfolio/pilot but sleeps after inactivity and has no production SLA; use a paid always-on instance for real ticket sales.
 
