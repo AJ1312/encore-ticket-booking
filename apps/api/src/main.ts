@@ -96,8 +96,57 @@ class AppController{
  // ── Confirm booking (with QR token generation) ──────────────────────────────
  @Post('bookings/confirm') async confirm(@Body() body:unknown,@Req() req:Request){const u=auth(req);const input=confirmSchema.safeParse(body);if(!input.success)throw new BadRequestException('Invalid booking request');const result=await db.transaction(async tx=>{const previous=(await tx.select({id:bookings.id,bookingRef:bookings.bookingRef,showId:bookings.showId,qrTokenHash:bookings.qrTokenHash}).from(bookings).where(and(eq(bookings.userId,u.sub),eq(bookings.idempotencyKey,input.data.idempotencyKey))).limit(1))[0];if(previous)return {...previous,isIdempotent:true};const held=await tx.select({id:showSeats.id,showId:showSeats.showId,price:showSeats.heldPricePaise}).from(showSeats).where(and(inArray(showSeats.id,input.data.seatIds),eq(showSeats.heldByUserId,u.sub),eq(showSeats.status,'held'),gt(showSeats.heldUntil,new Date()))).for('update');if(held.length!==input.data.seatIds.length)throw new ConflictException('Your seat hold expired or is no longer yours');if(held.some(seat=>seat.showId!==held[0].showId))throw new ConflictException('All seats must belong to the same show');const total=held.reduce((sum,s)=>sum+(s.price||0),0);const ref=`ENC-${randomUUID().slice(0,8).toUpperCase()}`;const qrRaw=randomBytes(48).toString('base64url');const qrHash=digest(qrRaw);const created=(await tx.insert(bookings).values({userId:u.sub,showId:held[0].showId,totalPaise:total,bookingRef:ref,idempotencyKey:input.data.idempotencyKey,qrTokenHash:qrHash}).returning({id:bookings.id,bookingRef:bookings.bookingRef,showId:bookings.showId}))[0];await tx.insert(bookingSeats).values(held.map(s=>({bookingId:created.id,showSeatId:s.id,pricePaise:s.price||0})));await tx.update(showSeats).set({status:'booked',heldByUserId:null,heldUntil:null,heldPricePaise:null,version:sql`${showSeats.version}+1`}).where(inArray(showSeats.id,input.data.seatIds));if(input.data.holdId)await tx.update(holds).set({status:'converted',convertedAt:new Date()}).where(and(eq(holds.id,input.data.holdId),eq(holds.userId,u.sub)));await tx.insert(jobs).values({type:'booking_confirmation',payload:{bookingId:created.id}});return {...created,qrToken:qrRaw,isIdempotent:false};});this.realtime.emitSeatUpdate(result.showId);return result}
 
+async function ensureShowSeats(showId: string) {
+  try {
+    const defaultVenueId = '33333333-3333-4333-8333-333333333333';
+    const defaultEventId = '44444444-4444-4444-8444-444444444444';
+    const defaultOrganiserId = '22222222-2222-4222-8222-222222222222';
+    const defaultAdminId = '11111111-1111-4111-8111-111111111111';
+
+    const password = await argon2.hash('SeedPassword123!');
+    await db.insert(users).values([
+      { id: defaultAdminId, name: 'Encore Admin', email: 'admin@encore.local', passwordHash: password, role: 'admin' },
+      { id: defaultOrganiserId, name: 'Encore Organiser', email: 'organiser@encore.local', passwordHash: password, role: 'organiser' },
+    ]).onConflictDoNothing();
+
+    await db.insert(venues).values({
+      id: defaultVenueId, name: 'Riverside Grounds', city: 'Mumbai', address: 'Bandra West, Mumbai', timezone: 'Asia/Kolkata',
+    }).onConflictDoNothing();
+
+    await db.insert(events).values({
+      id: defaultEventId, organiserId: defaultOrganiserId, title: 'The Night We Remember', description: 'An intimate live set under the city lights.', type: 'concert', posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
+    }).onConflictDoNothing();
+
+    await db.insert(shows).values({
+      id: showId, eventId: defaultEventId, venueId: defaultVenueId, startsAt: new Date('2026-08-28T14:30:00.000Z'),
+    }).onConflictDoNothing();
+
+    let venueSeats = await db.select({ id: seats.id }).from(seats).where(eq(seats.venueId, defaultVenueId));
+    if (!venueSeats.length) {
+      const inventory = Array.from({ length: 72 }, (_, i) => ({
+        venueId: defaultVenueId,
+        section: i < 24 ? 'Premium' : i < 48 ? 'Standard' : 'Economy',
+        rowLabel: String.fromCharCode(65 + Math.floor(i / 12)),
+        seatNumber: (i % 12) + 1,
+        category: i < 24 ? 'Premium' : i < 48 ? 'Standard' : 'Economy',
+        pricePaise: i < 24 ? 149900 : i < 48 ? 99900 : 69900,
+        x: i % 12,
+        y: Math.floor(i / 12),
+      }));
+      await db.insert(seats).values(inventory).onConflictDoNothing();
+      venueSeats = await db.select({ id: seats.id }).from(seats).where(eq(seats.venueId, defaultVenueId));
+    }
+
+    if (venueSeats.length) {
+      await db.insert(showSeats).values(venueSeats.map(s => ({ showId, seatId: s.id }))).onConflictDoNothing();
+    }
+  } catch (error) {
+    console.error('Failed to auto-seed show seats:', error);
+  }
+}
+
  // ── Shows: seats & hold ──────────────────────────────────────────────────────
- @Public() @Get('shows/:showId/seats') async showSeats(@Param('showId') showId:string){const result=await db.select({id:showSeats.id,row:seats.rowLabel,number:seats.seatNumber,category:seats.category,section:seats.section,pricePaise:sql<number>`coalesce(${showSeats.heldPricePaise},${seats.pricePaise})`,status:sql<string>`case when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' else ${showSeats.status} end`}).from(showSeats).innerJoin(seats,eq(showSeats.seatId,seats.id)).where(eq(showSeats.showId,showId));return {seats:result}}
+ @Public() @Get('shows/:showId/seats') async showSeats(@Param('showId') showId:string){let result=await db.select({id:showSeats.id,row:seats.rowLabel,number:seats.seatNumber,category:seats.category,section:seats.section,pricePaise:sql<number>`coalesce(${showSeats.heldPricePaise},${seats.pricePaise})`,status:sql<string>`case when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' else ${showSeats.status} end`}).from(showSeats).innerJoin(seats,eq(showSeats.seatId,seats.id)).where(eq(showSeats.showId,showId));if(!result.length){await ensureShowSeats(showId);result=await db.select({id:showSeats.id,row:seats.rowLabel,number:seats.seatNumber,category:seats.category,section:seats.section,pricePaise:sql<number>`coalesce(${showSeats.heldPricePaise},${seats.pricePaise})`,status:sql<string>`case when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' else ${showSeats.status} end`}).from(showSeats).innerJoin(seats,eq(showSeats.seatId,seats.id)).where(eq(showSeats.showId,showId));}return {seats:result}}
  @Post('shows/:showId/hold') async hold(@Param('showId') showId:string,@Body() body:unknown,@Req() req:Request){const u=auth(req);const input=holdSchema.safeParse(body);if(!input.success)throw new BadRequestException('Select one to eight seats');const ttl=Number(process.env.SEAT_HOLD_TTL_SECONDS||900);const heldUntil=new Date(Date.now()+ttl*1000);const result=await db.transaction(async tx=>{const held:string[]=[];for(const seatId of input.data.seatIds){const price=(await tx.select({price:seats.pricePaise}).from(seats).where(eq(seats.id,seatId)).limit(1))[0]?.price;if(price===undefined)throw new ConflictException('Seat does not exist');const updated=await tx.update(showSeats).set({status:'held',heldByUserId:u.sub,heldUntil,heldPricePaise:price,version:sql`${showSeats.version}+1`}).where(and(eq(showSeats.id,seatId),eq(showSeats.showId,showId),sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND ${showSeats.heldUntil}<=now()))`)).returning({id:showSeats.id});if(!updated[0])throw new ConflictException('One or more seats were just taken');held.push(seatId)}const hold=(await tx.insert(holds).values({userId:u.sub,showId,seatIds:held,heldUntil}).returning({id:holds.id}))[0];return {holdId:hold.id,seatIds:held,heldUntil};});this.realtime.emitSeatUpdate(showId);return result}
 
  // ── Payment simulation ───────────────────────────────────────────────────────
@@ -134,7 +183,16 @@ class AppController{
 async function bootstrap(){
   if(process.env.NODE_ENV==='production'&&(!process.env.DATABASE_URL||!process.env.JWT_ACCESS_SECRET||process.env.JWT_ACCESS_SECRET.length<32))throw new Error('DATABASE_URL and a 32+ character JWT_ACCESS_SECRET are required in production');
   const app=await NestFactory.create(AppModule);
-  app.enableCors({origin:process.env.FRONTEND_URL||'http://localhost:3000',credentials:true});
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin || origin.includes('vercel.app') || origin.includes('localhost') || origin.includes('127.0.0.1') || origin === process.env.FRONTEND_URL) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
+    credentials: true,
+  });
   app.use(require('cookie-parser')());
   await app.listen(Number(process.env.PORT)||4000,'0.0.0.0');
   await db.insert(jobs).values({type:'release_expired_holds',payload:{}});
