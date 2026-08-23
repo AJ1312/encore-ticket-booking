@@ -17,6 +17,7 @@ function ConfirmationContent() {
   const showIdQuery = searchParams.get('showId');
   const ref = params?.bookingRef || 'ENC-55F9CA50';
   const fallbackEvent = showIdQuery ? getEvent(showIdQuery) : getEvent('the-night-we-remember');
+  const isDynamicFallback = showIdQuery && fallbackEvent.slug === 'the-night-we-remember' && showIdQuery !== fallbackEvent.showId;
 
   const [booking, setBooking] = useState<{
     bookingRef: string;
@@ -31,10 +32,10 @@ function ConfirmationContent() {
   }>({
     bookingRef: ref,
     totalPaise: 299800,
-    eventTitle: fallbackEvent.title,
-    venue: fallbackEvent.venue,
-    city: fallbackEvent.city,
-    startsAt: '2026-08-28T14:30:00.000Z', // Can be updated if needed
+    eventTitle: isDynamicFallback ? 'Loading event details...' : fallbackEvent.title,
+    venue: isDynamicFallback ? 'Loading venue...' : fallbackEvent.venue,
+    city: isDynamicFallback ? '' : fallbackEvent.city,
+    startsAt: isDynamicFallback ? undefined : '2026-08-28T14:30:00.000Z',
     customerName: 'Aarav Sharma',
     qrToken: rawToken || undefined,
     seats: [
@@ -55,7 +56,7 @@ function ConfirmationContent() {
         qrToken?: string;
         customerName?: string;
         seats?: Array<{ row: string; number: number; category?: string }>;
-      }>(`/bookings/${ref}`)
+      }>(`/bookings/${ref}${rawToken ? `?token=${rawToken}` : ''}`)
         .then(data => {
           if (data) {
             setBooking(prev => ({
@@ -155,7 +156,7 @@ function ConfirmationContent() {
             </div>
 
             <h2 style={{ font: '36px var(--serif)', margin: '0 0 10px', color: 'var(--paper)', fontWeight: 400, letterSpacing: '-0.5px' }}>
-              {booking.eventTitle || 'The Night We Remember'}
+              {booking.eventTitle || 'Loading event details...'}
             </h2>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, color: '#c0b6af', fontSize: 13, margin: '0 0 24px' }}>
