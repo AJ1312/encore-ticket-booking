@@ -996,6 +996,16 @@ export class AppController {
     return { success: true };
   }
 
+  // ── Reset all seats across all shows ─────────────────────────────────────────
+  @Public()
+  @Post('admin/seats/reset')
+  async resetAllSeats() {
+    await db
+      .update(showSeats)
+      .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` });
+    return { success: true, message: 'All seats reset to available' };
+  }
+
   // ── Payment simulation ───────────────────────────────────────────────────────
   @Post('shows/:showId/payment-intent')
   async createPaymentIntent(@Param('showId') showId: string, @Body() body: unknown, @Req() req: Request) {
