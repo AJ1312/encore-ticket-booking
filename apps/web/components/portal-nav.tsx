@@ -4,16 +4,46 @@ import { CitySelector } from './city-selector';
 import { SearchNavButton } from './search-nav-button';
 
 export function PortalNav({ portal = 'customer' }: { portal?: 'customer' | 'organiser' | 'admin' }) {
-  if (portal !== 'customer') return <header className={`portal-nav ${portal}`}>
-    <Link href="/" className="brand">ENCORE<span>.</span></Link>
-    <nav>{portal === 'organiser' ? <><Link href="/organiser">Overview</Link><Link href="/organiser/events">Events</Link></> : <><Link href="/admin">Overview</Link><Link href="/admin/venues">Venues</Link><Link href="/admin/jobs">Jobs</Link><Link href="/admin/contention-lab">FairHold lab</Link></>}</nav>
-    <ProfileMenu />
-  </header>;
-  return <header className="portal-nav customer-nav">
-    <Link href="/" className="brand">ENCORE<span>.</span></Link>
-    <CitySelector />
-    <nav className="customer-links"><Link href="/events">Explore</Link><Link href="/events?kind=events">Live events</Link><Link href="/events?kind=movies">Movies</Link></nav>
-    <SearchNavButton />
-    <ProfileMenu />
-  </header>;
+  if (portal !== 'customer') {
+    return (
+      <header className={`portal-nav ${portal}`}>
+        <Link href="/" className="brand">
+          ENCORE<span>.</span>
+        </Link>
+        <nav>
+          {portal === 'organiser' ? (
+            <>
+              <Link href="/organiser">Overview</Link>
+              <Link href="/organiser/events">Events</Link>
+            </>
+          ) : (
+            <>
+              <Link href="/admin">Overview</Link>
+              <Link href="/admin/venues">Venues</Link>
+              <Link href="/admin/users">Users & Roles</Link>
+              <Link href="/admin/jobs">Jobs</Link>
+              <Link href="/admin/contention-lab">FairHold lab</Link>
+            </>
+          )}
+        </nav>
+        <ProfileMenu />
+      </header>
+    );
+  }
+
+  return (
+    <header className="portal-nav customer-nav">
+      <Link href="/" className="brand">
+        ENCORE<span>.</span>
+      </Link>
+      <CitySelector />
+      <nav className="customer-links">
+        <Link href="/events">Explore</Link>
+        <Link href="/events?kind=events">Live events</Link>
+        <Link href="/events?kind=movies">Movies</Link>
+      </nav>
+      <SearchNavButton />
+      <ProfileMenu />
+    </header>
+  );
 }

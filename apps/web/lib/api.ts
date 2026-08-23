@@ -1,11 +1,24 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export async function apiFetch(path: string, init: RequestInit = {}) {
-  return fetch(`${API_URL}/api${path}`, { ...init, credentials: 'include', headers: { 'Content-Type': 'application/json', ...(init.headers || {}) } });
+  const token = typeof window !== 'undefined' ? window.localStorage.getItem('encore_token') : undefined;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...((init.headers as Record<string, string>) || {}),
+  };
+  return fetch(`${API_URL}/api${path}`, {
+    ...init,
+    credentials: 'include',
+    headers,
+  });
 }
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await apiFetch(path, init);
-  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(errorText || `Request failed (${response.status})`);
+  }
   return response.json() as Promise<T>;
 }

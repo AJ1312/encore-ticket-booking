@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, KeyRound, Plus } from 'lucide-react';
+import { ArrowUpRight, KeyRound, LogIn, Plus, Check } from 'lucide-react';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { useEffect, useState } from 'react';
 import { apiJson } from '@/lib/api';
+import { signIn } from '@/lib/auth';
 
 type OrganiserEvent = {
   id: string;
@@ -18,28 +19,48 @@ export default function OrganiserPage() {
   const [eventsList, setEventsList] = useState<OrganiserEvent[]>([]);
   const [revenuePaise, setRevenuePaise] = useState(1842000);
   const [loading, setLoading] = useState(true);
+  const [authMsg, setAuthMsg] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
+  function loadData() {
     apiJson<{ events: OrganiserEvent[] }>('/organiser/events')
       .then(res => {
-        if (isMounted && res.events) {
+        if (res.events) {
           setEventsList(res.events);
         }
       })
       .catch(() => null)
       .finally(() => {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       });
 
     apiJson<{ totalPaise: number }>('/organiser/shows/55555555-5555-4555-8555-555555555555/revenue')
       .then(res => {
-        if (isMounted && res.totalPaise) setRevenuePaise(res.totalPaise);
+        if (res.totalPaise) setRevenuePaise(res.totalPaise);
       })
       .catch(() => null);
+  }
 
-    return () => { isMounted = false; };
+  useEffect(() => {
+    loadData();
   }, []);
+
+  async function quickSignInOrganiser() {
+    setSigningIn(true);
+    setAuthMsg('');
+    try {
+      const session = await signIn('organiser@encore.local', 'SeedPassword123!');
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('encore_profile', JSON.stringify(session));
+      }
+      setAuthMsg('Authenticated as Organiser! Reloading events…');
+      loadData();
+    } catch (err) {
+      setAuthMsg(err instanceof Error ? err.message : 'Sign in failed');
+    } finally {
+      setSigningIn(false);
+    }
+  }
 
   return (
     <main className="portal-page organiser">
@@ -48,8 +69,8 @@ export default function OrganiserPage() {
         <span className="eyebrow">Organiser workspace</span>
         <h1>Make the room<br /><em>worth filling.</em></h1>
 
-        {/* Demo Credentials Box */}
-        <div style={{ padding: 18, background: '#fff', border: '1px solid #c5d4c2', borderRadius: 4, marginBottom: 30, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        {/* Demo Credentials Box with 1-Click Sign In */}
+        <div style={{ padding: 18, background: '#fff', border: '1px solid #c5d4c2', borderRadius: 4, marginBottom: 30, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <KeyRound size={20} color="#3a7750" />
             <div>
@@ -59,10 +80,26 @@ export default function OrganiserPage() {
               </span>
             </div>
           </div>
-          <span style={{ font: '10px var(--mono)', padding: '5px 10px', background: '#e2eae0', color: '#2d5e3f', textTransform: 'uppercase' }}>
-            Seed Account
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={quickSignInOrganiser}
+              disabled={signingIn}
+              style={{ padding: '6px 12px', background: '#3a7750', border: '1px solid #2d5e3f', color: '#fff', fontSize: 12, borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}
+            >
+              <LogIn size={13} /> {signingIn ? 'Signing in…' : '1-Click Sign In as Organiser'}
+            </button>
+            <span style={{ font: '10px var(--mono)', padding: '5px 10px', background: '#e2eae0', color: '#2d5e3f', textTransform: 'uppercase' }}>
+              Seed Account
+            </span>
+          </div>
         </div>
+
+        {authMsg && (
+          <div style={{ padding: '10px 14px', background: '#e2eae0', border: '1px solid #2d5e3f', color: '#2d5e3f', borderRadius: 4, marginBottom: 20, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Check size={14} /> {authMsg}
+          </div>
+        )}
 
         <div className="metric-row">
           <div>

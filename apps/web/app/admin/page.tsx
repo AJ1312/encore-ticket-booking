@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, KeyRound, MapPin } from 'lucide-react';
+import { ArrowUpRight, KeyRound, LogIn, ShieldCheck, Check } from 'lucide-react';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { useEffect, useState } from 'react';
 import { apiJson } from '@/lib/api';
+import { signIn } from '@/lib/auth';
 
 type Metrics = {
   totalBookings: number;
@@ -19,18 +20,37 @@ type Metrics = {
 
 export default function AdminPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [authMsg, setAuthMsg] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
+  function loadMetrics() {
     apiJson<Metrics>('/admin/metrics')
       .then(data => {
-        if (isMounted) setMetrics(data);
+        setMetrics(data);
       })
       .catch(() => null);
-    return () => {
-      isMounted = false;
-    };
+  }
+
+  useEffect(() => {
+    loadMetrics();
   }, []);
+
+  async function quickSignInAdmin() {
+    setSigningIn(true);
+    setAuthMsg('');
+    try {
+      const session = await signIn('admin@encore.local', 'SeedPassword123!');
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('encore_profile', JSON.stringify(session));
+      }
+      setAuthMsg('Authenticated as Root Admin! Reloading live metrics…');
+      loadMetrics();
+    } catch (err) {
+      setAuthMsg(err instanceof Error ? err.message : 'Sign in failed');
+    } finally {
+      setSigningIn(false);
+    }
+  }
 
   return (
     <main className="portal-page admin">
@@ -39,8 +59,8 @@ export default function AdminPage() {
         <span className="eyebrow">System control / Admin</span>
         <h1>Everything<br /><em>in view.</em></h1>
 
-        {/* Demo Credentials Box */}
-        <div style={{ padding: 18, background: '#16251e', border: '1px solid #2b4738', borderRadius: 4, marginBottom: 30, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        {/* Demo Credentials Box with 1-Click Sign In */}
+        <div style={{ padding: 18, background: '#16251e', border: '1px solid #2b4738', borderRadius: 4, marginBottom: 30, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <KeyRound size={20} color="var(--green)" />
             <div>
@@ -50,10 +70,26 @@ export default function AdminPage() {
               </span>
             </div>
           </div>
-          <span style={{ font: '10px var(--mono)', padding: '5px 10px', background: '#0e1713', color: 'var(--green)', textTransform: 'uppercase' }}>
-            Root Admin
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={quickSignInAdmin}
+              disabled={signingIn}
+              style={{ padding: '6px 12px', background: '#254432', border: '1px solid #3d6e52', color: '#e0ffe8', fontSize: 12, borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}
+            >
+              <LogIn size={13} /> {signingIn ? 'Signing in…' : '1-Click Sign In as Admin'}
+            </button>
+            <span style={{ font: '10px var(--mono)', padding: '5px 10px', background: '#0e1713', color: 'var(--green)', textTransform: 'uppercase' }}>
+              Root Admin
+            </span>
+          </div>
         </div>
+
+        {authMsg && (
+          <div style={{ padding: '10px 14px', background: '#193022', border: '1px solid #2d543b', color: '#aee8c0', borderRadius: 4, marginBottom: 20, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Check size={14} /> {authMsg}
+          </div>
+        )}
 
         <div className="metric-row">
           <div>
@@ -84,7 +120,7 @@ export default function AdminPage() {
           <section className="portal-panel">
             <span className="eyebrow">Users & Roles</span>
             <h2>Platform Accounts</h2>
-            <p>Inspect all registered users, roles, and session refreshes across the platform.</p>
+            <p>Inspect all registered users, roles, and provision new organiser or admin accounts.</p>
             <Link href="/admin/users">Manage users & roles <ArrowUpRight size={15} /></Link>
           </section>
 

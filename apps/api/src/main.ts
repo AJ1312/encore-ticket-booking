@@ -80,10 +80,11 @@ const accessToken = (u: { id: string; name: string; email: string; role: Role })
   jwt.sign({ sub: u.id, name: u.name, email: u.email, role: u.role }, secret(), { expiresIn: '15m' });
 
 function setCookie(res: Response, name: string, value: string, maxAge: number) {
+  const isProd = process.env.NODE_ENV === 'production';
   res.cookie(name, value, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     maxAge,
     path: '/',
   });
@@ -1259,6 +1260,32 @@ export class AppController {
   }
 
   @Roles('admin')
+  @Post('admin/users')
+  async adminCreateUser(@Body() body: unknown) {
+    const { name, email, password, role } = body as { name?: string; email?: string; password?: string; role?: string };
+    if (!name || !email || !password) throw new BadRequestException('Name, email and password are required');
+    const parsedRole = roleSchema.safeParse(role || 'organiser');
+    if (!parsedRole.success) throw new BadRequestException('Invalid role');
+
+    const existing = (await db.select({ id: users.id }).from(users).where(eq(users.email, email.toLowerCase())).limit(1))[0];
+    if (existing) throw new ConflictException('User with this email already exists');
+
+    const created = (
+      await db
+        .insert(users)
+        .values({
+          name,
+          email: email.toLowerCase(),
+          passwordHash: await argon2.hash(password),
+          role: parsedRole.data,
+        })
+        .returning({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt })
+    )[0];
+
+    return created;
+  }
+
+  @Roles('admin')
   @Patch('admin/users/:userId/role')
   async adminSetRole(@Param('userId') userId: string, @Body() body: unknown) {
     const { role } = body as { role: string };
@@ -1366,15 +1393,16 @@ export class AppController {
   // ── Private helpers ──────────────────────────────────────────────────────────
   private async issue(u: { id: string; name: string; email: string; role: Role }, res: Response, familyId: string = randomUUID()) {
     const refresh = randomBytes(48).toString('base64url');
+    const token = accessToken(u);
     await db.insert(refreshTokens).values({
       userId: u.id,
       familyId,
       tokenHash: digest(refresh),
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
-    setCookie(res, 'encore_access', accessToken(u), 15 * 60 * 1000);
+    setCookie(res, 'encore_access', token, 15 * 60 * 1000);
     setCookie(res, 'encore_refresh', refresh, 30 * 24 * 60 * 60 * 1000);
-    return { session: { id: u.id, name: u.name, email: u.email, role: u.role } };
+    return { session: { id: u.id, name: u.name, email: u.email, role: u.role }, accessToken: token };
   }
 }
 
