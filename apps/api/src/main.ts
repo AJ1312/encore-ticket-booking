@@ -115,7 +115,10 @@ function auth(req: Request) {
 }
 
 async function resolveUserOrGuest(req: Request): Promise<AccessPayload> {
-  const raw = req.cookies?.encore_access || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined);
+  let raw = req.cookies?.encore_access;
+  if (!raw && req.headers.authorization?.startsWith('Bearer ')) {
+    raw = req.headers.authorization.slice(7);
+  }
   if (raw) {
     try {
       return jwt.verify(raw, secret()) as AccessPayload;
@@ -128,26 +131,23 @@ async function resolveUserOrGuest(req: Request): Promise<AccessPayload> {
   const defaultGuestId = '00000000-0000-4000-8000-000000000001';
   const defaultCustomerId = '00000000-0000-4000-8000-000000000002';
   try {
-    const existingGuest = await db.select({ id: users.id }).from(users).where(eq(users.id, defaultGuestId)).limit(1);
-    if (!existingGuest.length) {
-      const password = await argon2.hash('SeedPassword123!');
-      await db.insert(users).values([
-        {
-          id: defaultGuestId,
-          name: 'Encore Guest',
-          email: 'guest@encore.local',
-          passwordHash: password,
-          role: 'customer',
-        },
-        {
-          id: defaultCustomerId,
-          name: 'Encore Customer',
-          email: 'customer@encore.local',
-          passwordHash: password,
-          role: 'customer',
-        }
-      ]).onConflictDoNothing();
-    }
+    const password = await argon2.hash('SeedPassword123!');
+    await db.insert(users).values([
+      {
+        id: defaultGuestId,
+        name: 'Encore Guest',
+        email: 'guest@encore.local',
+        passwordHash: password,
+        role: 'customer',
+      },
+      {
+        id: defaultCustomerId,
+        name: 'Encore Customer',
+        email: 'customer@encore.local',
+        passwordHash: password,
+        role: 'customer',
+      }
+    ]).onConflictDoNothing();
   } catch {
     // ignore
   }
@@ -164,7 +164,10 @@ class AuthGuard implements CanActivate {
       return true;
     }
     const req = ctx.switchToHttp().getRequest<Request>();
-    const raw = req.cookies?.encore_access || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined);
+    let raw = req.cookies?.encore_access;
+    if (!raw && req.headers.authorization?.startsWith('Bearer ')) {
+      raw = req.headers.authorization.slice(7);
+    }
     if (!raw) throw new UnauthorizedException();
 
     try {
@@ -187,15 +190,12 @@ async function ensureShowSeats(showId: string) {
     const defaultAdminId = '11111111-1111-4111-8111-111111111111';
     const defaultCustomerId = '00000000-0000-4000-8000-000000000002';
 
-    const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.id, defaultAdminId)).limit(1);
-    if (!existingAdmin.length) {
-      const password = await argon2.hash('SeedPassword123!');
-      await db.insert(users).values([
-        { id: defaultAdminId, name: 'Encore Admin', email: 'admin@encore.local', passwordHash: password, role: 'admin' },
-        { id: defaultOrganiserId, name: 'Encore Organiser', email: 'organiser@encore.local', passwordHash: password, role: 'organiser' },
-        { id: defaultCustomerId, name: 'Encore Customer', email: 'customer@encore.local', passwordHash: password, role: 'customer' },
-      ]).onConflictDoNothing();
-    }
+    const password = await argon2.hash('SeedPassword123!');
+    await db.insert(users).values([
+      { id: defaultAdminId, name: 'Encore Admin', email: 'admin@encore.local', passwordHash: password, role: 'admin' },
+      { id: defaultOrganiserId, name: 'Encore Organiser', email: 'organiser@encore.local', passwordHash: password, role: 'organiser' },
+      { id: defaultCustomerId, name: 'Encore Customer', email: 'customer@encore.local', passwordHash: password, role: 'customer' },
+    ]).onConflictDoNothing();
 
     // Multi-city show mapping table
     const cityShows: Record<string, { venueId: string; venueName: string; city: string; eventId: string; eventTitle: string; posterUrl: string }> = {
