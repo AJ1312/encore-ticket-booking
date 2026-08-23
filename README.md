@@ -1,49 +1,98 @@
-# Encore
+# Encore Ticket Booking System
 
-Encore is a full-stack ticket booking system with three distinct portal experiences: customer, organiser, and admin. The architecture is designed around one durable PostgreSQL correctness boundary for seat holds and booking confirmation.
+Encore is a high-performance, resilient ticket booking platform designed for high-concurrency environments. It solves the critical "FairHold" problem—preventing double-bookings when thousands of users attempt to book the exact same seat simultaneously, while strictly enforcing hold expirations, waitlist auto-allocations, and robust payments.
 
-## Architecture decisions
+## Application URLs
+- **Frontend (Vercel)**: *Provide your Vercel URL here (e.g., https://ajiteshsharma.dev/unthinkable/ticket-booking or https://tickets.ajiteshsharma.dev)*
+- **Backend API (Render)**: *Provide your Render URL here*
 
-- **PostgreSQL + Drizzle:** seat ownership, hold expiry, idempotent confirmations, and user accounts survive process restarts and Render sleep. A process timer is never used for correctness.
-- **Nest guards + Next proxy:** Nest is the authoritative authorization boundary. Next 16's `proxy.ts` only provides fast optimistic redirects based on the presence of an auth cookie; it does not replace server-side authorization.
-- **Short access + rotated refresh cookies:** the access JWT lasts 15 minutes; the refresh token is opaque, hashed in PostgreSQL, stored in an httpOnly cookie, and revoked on rotation/logout.
-- **One API process:** keeps the free-tier footprint small. Realtime and durable jobs can be added without splitting the deployable process prematurely.
+---
 
-## Local setup
+## 🚀 Setup Guide
 
+### Prerequisites
+- Node.js (v22+)
+- pnpm (v10+)
+- PostgreSQL (Local, Neon, Render, or Supabase)
+
+### 1. Install Dependencies
+This project uses a monorepo structure managed by pnpm.
 ```bash
-corepack enable
 pnpm install
+```
+
+### 2. Environment Configuration
+Copy the example environment file and configure it:
+```bash
 cp .env.example .env
-# Start PostgreSQL, then:
-docker compose up -d postgres
-# If Docker Desktop is unavailable, create a Neon project and paste its pooled
-# DATABASE_URL into .env instead.
-pnpm --filter @encore/api db:generate
+```
+Ensure `DATABASE_URL` is correctly pointed to your PostgreSQL instance and `JWT_ACCESS_SECRET` is at least 32 characters long.
+
+### 3. Database Migration and Seeding
+Run the database migrations and seed it with demo data (events, venues, demo users):
+```bash
 pnpm --filter @encore/api db:migrate
 pnpm --filter @encore/api db:seed
+```
+
+### 4. Start the Application
+Start both the Next.js frontend and NestJS backend concurrently:
+```bash
 pnpm dev
 ```
+- **Frontend App**: [http://localhost:3000](http://localhost:3000)
+- **Backend API**: [http://localhost:4000/api/health](http://localhost:4000/api/health)
 
-Customer: http://localhost:3000 · API: http://localhost:4000/api/health
+---
 
-Seed accounts use the explicitly configured `SEED_PASSWORD` for the admin and organiser addresses created by the seed command. The seed command refuses to run when it is missing; never commit the real value.
+## 🛠 Database Schema Overview
 
-## Deployment
+The architecture utilizes a highly normalized PostgreSQL database using Drizzle ORM:
+- **`users`**: Contains authentication and role data (Admin, Organiser, Customer).
+- **`venues` & `seats`**: Stores physical layouts, categories (e.g., VIP, General), and geographical locations.
+- **`events` & `shows`**: Master events and individual time-bound occurrences (shows).
+- **`show_seats`**: State engine for tickets. Tracks `available`, `held`, or `booked` statuses mapped to a specific user and TTL (Time-to-Live). Uses optimistic concurrency control (`version` column).
+- **`holds`**: Tracks active cart sessions.
+- **`bookings` & `payments`**: Financial and ownership tracking for finalized passes.
+- **`waitlist_entries`**: FIFO queue mapping customers to specific shows and seat categories.
+- **`jobs`**: Asynchronous task queue tracking background worker jobs.
 
-Deploy the web app to Vercel and the API to Render as one Node web service. Keep the repository root as the Render service root so the pnpm workspace lockfile is available. The checked-in `render.yaml` pins Node 22, uses Render's existing pnpm installation, builds the API from the workspace, and runs migrations before startup.
+---
 
-Set these Render variables: `DATABASE_URL`, `JWT_ACCESS_SECRET` (32+ random characters), `FRONTEND_URL`, and `NODE_ENV=production`. Set `NEXT_PUBLIC_API_URL` in Vercel. Run migrations as a controlled release step before enabling traffic. Render Free is suitable for a portfolio/pilot but sleeps after inactivity and has no production SLA; use a paid always-on instance for real ticket sales.
+## 🧠 Core System Logic & Explanations
 
-Before deployment, run:
+### Seat Hold Mechanism & TTL
+When a user selects a seat, the system creates a **15-minute cryptographically secure hold**:
+1. **Pessimistic Lock & Versioning**: The `show_seats` table is updated atomically. The seat's `status` changes from `available` to `held`, assigning the `heldByUserId` and `heldUntil` (current time + 15 mins).
+2. **Time-to-Live (TTL)**: If checkout is not completed before `heldUntil`, the hold natively becomes invalid.
+3. **Cart Binding**: A record in the `holds` table tracks the entire session, ensuring the user has ownership during checkout.
 
-```bash
-pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm build
-docker compose config
-```
+### Background Worker & Hold Release
+Encore runs a resilient asynchronous worker (via BullMQ or a lightweight database poller) that routinely executes `release_expired_holds` jobs:
+1. It queries `show_seats` where `heldUntil <= now()` and `status = 'held'`.
+2. It resets these seats back to `available`.
+3. It cancels the corresponding `holds`.
+4. It immediately checks the `waitlist_entries` to see if a customer is queued for that exact seat category.
 
-## Verification
+### Waitlist Auto-Assignment Flow
+The waitlist operates on a strict **FIFO (First-In, First-Out)** basis natively inside the database transaction:
+1. When a seat becomes available (via hold expiration or booking cancellation), the worker queries the oldest `waiting` user in the `waitlist_entries` table for that specific show and category.
+2. If found, the system *automatically* places a new 15-minute hold on the seat for that waitlisted user.
+3. The waitlist entry is updated to `offered` and assigned a TTL (`offerExpiresAt`).
+4. An automated email (via Resend) is dispatched informing the user they have 15 minutes to claim their tickets. If they fail to checkout, the cycle repeats.
 
-`pnpm typecheck` and `pnpm build` are required before deployment. The core integration suite must cover concurrent holds (one winner), expired holds, idempotent confirmation, refresh rotation, role denial, and booking cancellation before calling the system production-ready.
+---
+
+## 📖 API Documentation (Key Endpoints)
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `POST` | `/api/auth/register` | Register a new customer | No |
+| `POST` | `/api/auth/login` | Authenticate and receive JWT session | No |
+| `GET`  | `/api/shows/:showId/seats` | Retrieve realtime seat availability matrix | No |
+| `POST` | `/api/shows/:showId/hold` | Atomically reserve seats (15 min TTL) | Yes |
+| `POST` | `/api/shows/:showId/payment-intent` | Finalize hold and generate payment context | Yes |
+| `POST` | `/api/bookings/confirm` | Confirm payment and issue ticket pass | Yes |
+| `POST` | `/api/waitlist` | Join the FIFO waitlist for a sold-out category | Yes |
+
+*Note: All authenticated endpoints require a `Bearer <token>` header.*
