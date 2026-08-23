@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Check, ChevronRight, Clock3, Info, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Clock3, Info, Minus, Plus, ShieldCheck, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { PortalFooter } from './portal-footer';
@@ -11,7 +11,7 @@ import { apiJson, API_URL } from '@/lib/api';
 import { io } from 'socket.io-client';
 
 type SeatStatus = 'available' | 'held' | 'booked' | 'blocked';
-type Seat = { id: string; row: string; number: number; pricePaise: number; status: SeatStatus; category?: string };
+type Seat = { id: string; row: string; number: number; pricePaise: number; status: SeatStatus; category?: string; section?: string };
 
 export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: string }) {
   const router = useRouter();
@@ -23,6 +23,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
   const [error, setError] = useState('');
   const [view, setView] = useState<'map' | 'list'>('map');
   const [zoom, setZoom] = useState(100);
+  const [hoveredSeat, setHoveredSeat] = useState<Seat | null>(null);
 
   const total = useMemo(
     () => selected.reduce((sum, id) => sum + (seats.find(seat => seat.id === id)?.pricePaise || 0), 0),
@@ -92,6 +93,11 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
     router.push(`/shows/${eventId}/checkout?seats=${query}`);
   }
 
+  // Tier counts
+  const premiumCount = seats.filter(s => s.category === 'Premium' && s.status === 'available').length;
+  const standardCount = seats.filter(s => s.category === 'Standard' && s.status === 'available').length;
+  const economyCount = seats.filter(s => s.category === 'Economy' && s.status === 'available').length;
+
   return (
     <main className="booking-page">
       <PortalNav />
@@ -105,8 +111,31 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             <h1>Choose your<br /><em>seats.</em></h1>
             <p>{event.date} 2026 · {event.time} · {event.city}</p>
           </div>
-          <div className="hold-note">
-            <Clock3 size={15} /> 15 minute server hold
+          <div className="hold-note" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1c1b18', border: '1px solid #3d342c', color: 'var(--peach)', padding: '10px 16px', borderRadius: 4 }}>
+            <Clock3 size={16} />
+            <div>
+              <span style={{ display: 'block', font: '11px var(--mono)', fontWeight: 600, letterSpacing: '0.04em' }}>15-MIN SERVER HOLD</span>
+              <span style={{ fontSize: 11, color: '#c0b6af' }}>PostgreSQL atomic row lock</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pricing Category Bands */}
+        <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
+          <div style={{ padding: '8px 16px', background: '#191816', border: '1px solid #362f2b', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--coral)', display: 'inline-block' }} />
+            <span style={{ font: '12px var(--sans)', color: 'var(--paper)' }}>Premium · ₹1,499</span>
+            <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>({premiumCount} available)</span>
+          </div>
+          <div style={{ padding: '8px 16px', background: '#191816', border: '1px solid #362f2b', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} />
+            <span style={{ font: '12px var(--sans)', color: 'var(--paper)' }}>Standard · ₹999</span>
+            <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>({standardCount} available)</span>
+          </div>
+          <div style={{ padding: '8px 16px', background: '#191816', border: '1px solid #362f2b', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#8e968f', display: 'inline-block' }} />
+            <span style={{ font: '12px var(--sans)', color: 'var(--paper)' }}>Economy · ₹699</span>
+            <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>({economyCount} available)</span>
           </div>
         </div>
       </section>
@@ -114,7 +143,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
       <section className="booking-area">
         <div className="map-column">
           {loading ? (
-            <div className="empty-state">Loading live seat inventory from API…</div>
+            <div className="empty-state">Loading live seat inventory from database…</div>
           ) : error ? (
             <div className="empty-state">
               <h3>Seats unavailable</h3>
@@ -137,23 +166,42 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
               {view === 'map' ? (
                 <div className="seat-canvas">
                   <div className="seat-map-scale" style={{ transform: `scale(${zoom / 100})` }}>
-                    <div className="stage">STAGE</div>
+                    <div className="stage">
+                      <span style={{ letterSpacing: '0.3em', fontWeight: 600 }}>STAGE</span>
+                      <div style={{ width: '60%', height: 2, background: 'linear-gradient(90deg, transparent, var(--peach), transparent)', margin: '6px auto 0' }} />
+                    </div>
                     <div className="seat-grid-large">
-                      {seats.map(seat => (
-                        <button
-                          key={seat.id}
-                          disabled={seat.status !== 'available'}
-                          aria-label={`Row ${seat.row}, seat ${seat.number}`}
-                          onClick={() => toggle(seat.id)}
-                          className={`seat-large ${seat.status === 'booked' || seat.status === 'blocked' ? 'sold' : seat.status} ${
-                            selected.includes(seat.id) ? 'selected' : ''
-                          }`}
-                        >
-                          {seat.number}
-                        </button>
-                      ))}
+                      {seats.map(seat => {
+                        const isSelected = selected.includes(seat.id);
+                        const isAvailable = seat.status === 'available';
+                        return (
+                          <button
+                            key={seat.id}
+                            disabled={!isAvailable}
+                            aria-label={`Row ${seat.row}, seat ${seat.number}`}
+                            onClick={() => toggle(seat.id)}
+                            onMouseEnter={() => setHoveredSeat(seat)}
+                            onMouseLeave={() => setHoveredSeat(null)}
+                            className={`seat-large ${seat.status === 'booked' || seat.status === 'blocked' ? 'sold' : seat.status} ${
+                              isSelected ? 'selected' : ''
+                            }`}
+                            style={{
+                              borderColor: isSelected ? 'var(--peach)' : seat.category === 'Premium' ? '#e07a5f66' : seat.category === 'Standard' ? '#3a775066' : undefined,
+                            }}
+                          >
+                            {seat.number}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {hoveredSeat && (
+                    <div style={{ marginTop: 16, padding: '8px 16px', background: '#121416', border: '1px solid #2b2523', display: 'inline-block', font: '11px var(--mono)', color: 'var(--peach)' }}>
+                      Row {hoveredSeat.row} · Seat {hoveredSeat.number} · {hoveredSeat.category || 'Standard'} (₹{Math.round(hoveredSeat.pricePaise / 100).toLocaleString('en-IN')}) · {hoveredSeat.status.toUpperCase()}
+                    </div>
+                  )}
+
                   <div className="seat-legend">
                     <span><i /> Available</span>
                     <span><i className="selected-dot" /> Selected ({selected.length}/8)</span>
@@ -189,7 +237,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
           <div className="summary-rule" />
           <div className="summary-seats">
             <div>
-              <span>Selected seats</span>
+              <span>Selected seats ({selected.length}/8)</span>
               <b>{selected.length ? selected.map(id => {
                 const seat = seats.find(v => v.id === id);
                 return seat ? `${seat.row}${seat.number}` : id;

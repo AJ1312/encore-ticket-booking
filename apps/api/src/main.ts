@@ -150,17 +150,23 @@ async function ensureShowSeats(showId: string) {
       posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
     }).onConflictDoNothing();
 
-    await db.insert(shows).values({
-      id: showId,
-      eventId: defaultEventId,
-      venueId: defaultVenueId,
-      startsAt: new Date('2026-08-28T14:30:00.000Z'),
-    }).onConflictDoNothing();
+    // Check if show already exists
+    const existingShow = (await db.select().from(shows).where(eq(shows.id, showId)).limit(1))[0];
+    const venueIdToUse = existingShow ? existingShow.venueId : defaultVenueId;
 
-    let venueSeats = await db.select({ id: seats.id }).from(seats).where(eq(seats.venueId, defaultVenueId));
+    if (!existingShow) {
+      await db.insert(shows).values({
+        id: showId,
+        eventId: defaultEventId,
+        venueId: defaultVenueId,
+        startsAt: new Date('2026-08-28T14:30:00.000Z'),
+      }).onConflictDoNothing();
+    }
+
+    let venueSeats = await db.select({ id: seats.id }).from(seats).where(eq(seats.venueId, venueIdToUse));
     if (!venueSeats.length) {
       const inventory = Array.from({ length: 72 }, (_, i) => ({
-        venueId: defaultVenueId,
+        venueId: venueIdToUse,
         section: i < 24 ? 'Premium' : i < 48 ? 'Standard' : 'Economy',
         rowLabel: String.fromCharCode(65 + Math.floor(i / 12)),
         seatNumber: (i % 12) + 1,
@@ -170,7 +176,7 @@ async function ensureShowSeats(showId: string) {
         y: Math.floor(i / 12),
       }));
       await db.insert(seats).values(inventory).onConflictDoNothing();
-      venueSeats = await db.select({ id: seats.id }).from(seats).where(eq(seats.venueId, defaultVenueId));
+      venueSeats = await db.select({ id: seats.id }).from(seats).where(eq(seats.venueId, venueIdToUse));
     }
 
     if (venueSeats.length) {
