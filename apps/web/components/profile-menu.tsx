@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LogIn, Ticket, X, ShieldCheck, UserCheck } from 'lucide-react';
+import { LogIn, Ticket, X, ShieldCheck, UserCheck, User } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import type { Session } from '@encore/shared';
@@ -97,7 +97,7 @@ export function ProfileMenu() {
           cursor: 'pointer',
         }}
       >
-        <img src="/default-avatar.png" alt="Profile" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
+        <User size={18} strokeWidth={1.5} />
         {session && (
           <>
             <span style={{ fontSize: 11, font: '11px var(--mono)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
