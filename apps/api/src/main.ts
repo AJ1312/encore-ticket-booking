@@ -123,8 +123,6 @@ class AuthGuard implements CanActivate {
 
 async function ensureShowSeats(showId: string) {
   try {
-    const defaultVenueId = '33333333-3333-4333-8333-333333333333';
-    const defaultEventId = '44444444-4444-4444-8444-444444444444';
     const defaultOrganiserId = '22222222-2222-4222-8222-222222222222';
     const defaultAdminId = '11111111-1111-4111-8111-111111111111';
 
@@ -134,32 +132,77 @@ async function ensureShowSeats(showId: string) {
       { id: defaultOrganiserId, name: 'Encore Organiser', email: 'organiser@encore.local', passwordHash: password, role: 'organiser' },
     ]).onConflictDoNothing();
 
-    await db.insert(venues).values({
-      id: defaultVenueId,
-      name: 'Riverside Grounds',
+    // Multi-city show mapping table
+    const cityShows: Record<string, { venueId: string; venueName: string; city: string; eventId: string; eventTitle: string; posterUrl: string }> = {
+      '55555555-5555-4555-8555-555555555555': {
+        venueId: '33333333-3333-4333-8333-333333333333',
+        venueName: 'Riverside Grounds',
+        city: 'Mumbai',
+        eventId: '44444444-4444-4444-8444-444444444444',
+        eventTitle: 'The Night We Remember',
+        posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
+      },
+      '55555555-5555-4555-8555-000000000010': {
+        venueId: '33333333-3333-4333-8333-000000000010',
+        venueName: 'Sunder Nursery Amphitheatre',
+        city: 'Delhi NCR',
+        eventId: '44444444-4444-4444-8444-000000000010',
+        eventTitle: 'Echoes in the Ruins: Sunder Acoustic',
+        posterUrl: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?auto=format&fit=crop&w=1400&q=85',
+      },
+      '55555555-5555-4555-8555-000000000020': {
+        venueId: '33333333-3333-4333-8333-000000000020',
+        venueName: 'Jayamahal Palace Lawns',
+        city: 'Bengaluru',
+        eventId: '44444444-4444-4444-8444-000000000020',
+        eventTitle: 'Garden City Live: Synth & Brass',
+        posterUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1400&q=85',
+      },
+      '55555555-5555-4555-8555-000000000030': {
+        venueId: '33333333-3333-4333-8333-000000000030',
+        venueName: 'The Mills Amphitheatre',
+        city: 'Pune',
+        eventId: '44444444-4444-4444-8444-000000000030',
+        eventTitle: 'Sunset Sessions at The Mills',
+        posterUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1400&q=85',
+      },
+    };
+
+    const cfg = cityShows[showId] || {
+      venueId: '33333333-3333-4333-8333-333333333333',
+      venueName: 'Riverside Grounds',
       city: 'Mumbai',
-      address: 'Bandra West, Mumbai',
+      eventId: '44444444-4444-4444-8444-444444444444',
+      eventTitle: 'The Night We Remember',
+      posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
+    };
+
+    await db.insert(venues).values({
+      id: cfg.venueId,
+      name: cfg.venueName,
+      city: cfg.city,
+      address: `${cfg.venueName}, ${cfg.city}`,
       timezone: 'Asia/Kolkata',
     }).onConflictDoNothing();
 
     await db.insert(events).values({
-      id: defaultEventId,
+      id: cfg.eventId,
       organiserId: defaultOrganiserId,
-      title: 'The Night We Remember',
+      title: cfg.eventTitle,
       description: 'An intimate live set under the city lights.',
       type: 'concert',
-      posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
+      posterUrl: cfg.posterUrl,
     }).onConflictDoNothing();
 
     // Check if show already exists
     const existingShow = (await db.select().from(shows).where(eq(shows.id, showId)).limit(1))[0];
-    const venueIdToUse = existingShow ? existingShow.venueId : defaultVenueId;
+    const venueIdToUse = existingShow ? existingShow.venueId : cfg.venueId;
 
     if (!existingShow) {
       await db.insert(shows).values({
         id: showId,
-        eventId: defaultEventId,
-        venueId: defaultVenueId,
+        eventId: cfg.eventId,
+        venueId: cfg.venueId,
         startsAt: new Date('2026-08-28T14:30:00.000Z'),
       }).onConflictDoNothing();
     }
