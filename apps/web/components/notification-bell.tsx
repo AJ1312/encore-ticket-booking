@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Bell, Clock, Sparkles, CheckCircle2, Ticket, X, ChevronRight } from 'lucide-react';
+import { Bell, Clock, Sparkles, CheckCircle2, Ticket, X, ChevronRight, LogIn } from 'lucide-react';
 import { apiJson } from '@/lib/api';
+import type { Session } from '@encore/shared';
 
-type AppNotification = {
+export type AppNotification = {
   id: string;
   type: 'hold_warning' | 'waitlist_offer' | 'booking_confirmed' | 'seat_opened';
   title: string;
@@ -17,49 +18,129 @@ type AppNotification = {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: 'notif-1',
-      type: 'waitlist_offer',
-      title: 'Waitlist Priority Batch Active',
-      message: 'Seats opened up for The Night We Remember. You have a 15-minute priority claim window.',
-      timestamp: 'Just now',
-      link: '/waitlist/wl-demo-batch-1',
-      unread: true,
-    },
-    {
-      id: 'notif-2',
-      type: 'booking_confirmed',
-      title: 'Booking Confirmed',
-      message: 'Your ticket pass for The Night We Remember is ready. Present QR at gate.',
-      timestamp: '2 hours ago',
-      link: '/booking/ENC-55F9CA50/confirmation',
-      unread: false,
-    },
-  ]);
-
+  const [session, setSession] = useState<Session | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  function syncUserAndNotifications() {
+    try {
+      const storedProfile = window.localStorage.getItem('encore_profile');
+      if (storedProfile) {
+        setSession(JSON.parse(storedProfile) as Session);
+      } else {
+        setSession(null);
+      }
+
+      // Check stored custom user notifications
+      const storedNotifs = window.localStorage.getItem('encore_user_notifications');
+      if (storedNotifs && storedProfile) {
+        setNotifications(JSON.parse(storedNotifs) as AppNotification[]);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Verify session with server authority
+    apiJson<{ session?: Session; user?: Session }>('/auth/me')
+      .then(res => {
+        const active = res.session || res.user;
+        if (active) {
+          setSession(active);
+          // If logged in, fetch user's real bookings to construct notification list
+          apiJson<{ bookings: Array<{ bookingRef: string; eventTitle?: string; status: string; createdAt?: string }> }>('/bookings')
+            .then(bRes => {
+              if (bRes.bookings && bRes.bookings.length > 0) {
+                const notifs: AppNotification[] = bRes.bookings.map(b => ({
+                  id: `notif-${b.bookingRef}`,
+                  type: 'booking_confirmed',
+                  title: 'Booking Confirmed',
+                  message: `Your ticket pass for ${b.eventTitle || 'your event'} is confirmed. Present QR at gate.`,
+                  timestamp: 'Recent',
+                  link: `/booking/${b.bookingRef}/confirmation`,
+                  unread: false,
+                }));
+                setNotifications(notifs);
+              } else {
+                setNotifications([]);
+              }
+            })
+            .catch(() => {
+              setNotifications([]);
+            });
+        } else {
+          setSession(null);
+          setNotifications([]);
+        }
+      })
+      .catch(() => {
+        setSession(null);
+        setNotifications([]);
+      });
+  }
+
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
+    syncUserAndNotifications();
+
+    const handleProfileUpdate = () => syncUserAndNotifications();
+    const handleNotificationAdded = (e: Event) => {
+      try {
+        const customEvt = e as CustomEvent<AppNotification>;
+        if (customEvt.detail) {
+          setNotifications(prev => [customEvt.detail, ...prev.filter(n => n.id !== customEvt.detail.id)]);
+        } else {
+          syncUserAndNotifications();
+        }
+      } catch {
+        syncUserAndNotifications();
+      }
+    };
+
+    window.addEventListener('profile-updated', handleProfileUpdate);
+    window.addEventListener('notification-added', handleNotificationAdded);
+    window.addEventListener('storage', handleProfileUpdate);
+
+    const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
-    }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdate);
+      window.removeEventListener('notification-added', handleNotificationAdded);
+      window.removeEventListener('storage', handleProfileUpdate);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
-  const unreadCount = notifications.filter(n => n.unread).length;
+  const unreadCount = session ? notifications.filter(n => n.unread).length : 0;
 
   function markAllRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, unread: false }));
+      try {
+        window.localStorage.setItem('encore_user_notifications', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
   }
 
   function dismiss(id: string, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setNotifications(prev => {
+      const filtered = prev.filter(n => n.id !== id);
+      try {
+        window.localStorage.setItem('encore_user_notifications', JSON.stringify(filtered));
+      } catch {
+        // ignore
+      }
+      return filtered;
+    });
   }
 
   return (
@@ -168,10 +249,28 @@ export function NotificationBell() {
           </div>
 
           <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-            {notifications.length === 0 ? (
+            {!session ? (
+              <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                <Bell size={24} style={{ margin: '0 auto 8px', color: 'var(--peach)', opacity: 0.6 }} />
+                <strong style={{ display: 'block', color: 'var(--paper)', fontSize: 13, marginBottom: 4 }}>
+                  Personalized Alerts
+                </strong>
+                <p style={{ color: 'var(--muted)', fontSize: 11, lineHeight: 1.5, margin: '0 0 16px' }}>
+                  Sign in to receive instant hold warnings, waitlist offers, and confirmed ticket notifications.
+                </p>
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className="coral-button"
+                  style={{ width: '100%', justifyContent: 'center', padding: '10px', fontSize: 11 }}
+                >
+                  <LogIn size={13} /> Sign In to Encore
+                </Link>
+              </div>
+            ) : notifications.length === 0 ? (
               <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
                 <CheckCircle2 size={24} style={{ margin: '0 auto 8px', color: 'var(--green)' }} />
-                You’re all caught up.
+                You’re all caught up. No new alerts.
               </div>
             ) : (
               notifications.map(n => (
@@ -212,7 +311,7 @@ export function NotificationBell() {
                   </div>
                   <p style={{ margin: '2px 0 6px', color: '#c0b6af', fontSize: 11, lineHeight: 1.5 }}>{n.message}</p>
                   <span style={{ color: 'var(--muted)', font: '9px var(--mono)', textTransform: 'uppercase' }}>
-                    {n.timestamp} · Tap to act →
+                    {n.timestamp} · Tap to view pass →
                   </span>
                 </Link>
               ))

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, KeyRound, Sparkles, Bell, Clock, QrCode, Utensils, ShieldCheck, Check } from 'lucide-react';
+import { X, KeyRound, Sparkles, Bell, Clock, QrCode, Utensils, ShieldCheck, Check, Server, Layers, Cpu, Database } from 'lucide-react';
 
 const STORAGE_KEY = 'encore_author_note_v3';
 
@@ -92,7 +92,7 @@ export function WelcomeModal() {
           background: '#141618',
           border: '1px solid #3d342f',
           borderRadius: 8,
-          maxWidth: 680,
+          maxWidth: 720,
           width: '100%',
           maxHeight: 'min(90vh, 90dvh)',
           display: 'flex',
@@ -132,7 +132,7 @@ export function WelcomeModal() {
             <span className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--peach)', fontSize: 11 }}>
               <Sparkles size={13} color="var(--coral)" /> Author note & platform architecture
             </span>
-            <h1 className="wm-title" style={{ font: 'clamp(36px, 6vw, 56px) var(--serif)', color: 'var(--paper)', margin: '10px 0 8px', lineHeight: 1.05 }}>
+            <h1 className="wm-title" style={{ font: 'clamp(34px, 5.5vw, 52px) var(--serif)', color: 'var(--paper)', margin: '10px 0 8px', lineHeight: 1.05 }}>
               Welcome to <em>Encore</em>
             </h1>
             <p className="wm-lede" style={{ color: '#c8bdb6', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
@@ -140,7 +140,7 @@ export function WelcomeModal() {
               <span className="wm-highlight" style={{ color: 'var(--coral)', fontWeight: 600 }}>
                 "someone else took your seat"
               </span>
-              &nbsp;heartbreaks.
+              &nbsp;heartbreaks. Built on atomic row locks and real-time event streaming.
             </p>
           </div>
 
@@ -176,51 +176,81 @@ export function WelcomeModal() {
             </div>
           </section>
 
-          {/* Key Systems */}
-          <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <h2 style={{ font: '20px var(--serif)', color: 'var(--paper)', margin: '0 0 4px' }}>
-              Engineered Product Architecture
+          {/* System Design In Short */}
+          <section style={{ marginBottom: 24 }}>
+            <h2 style={{ font: '20px var(--serif)', color: 'var(--paper)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Server size={18} color="var(--peach)" /> System Design In Short
             </h2>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
+                <strong style={{ color: 'var(--peach)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Database size={13} color="var(--green)" /> Concurrency & Single Source of Truth
+                </strong>
+                <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+                  Guarded by PostgreSQL transactional row locks (<code>FOR UPDATE SKIP LOCKED</code>) and compound unique keys <code>(show_id, seat_id)</code> to eliminate race conditions and double-booking incidents.
+                </p>
+              </div>
 
-            <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
-              <strong style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--peach)', fontSize: 13, marginBottom: 4 }}>
-                <Clock size={15} color="var(--coral)" /> 15-Minute Real-Time Seat Holds
-              </strong>
-              <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-                Upon entering checkout, seats are reserved exclusively for 15 minutes with server-side row locks in PostgreSQL. If the transaction is cancelled or times out, background BullMQ workers release the seats instantly back to the floor.
-              </p>
+              <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
+                <strong style={{ color: 'var(--peach)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Clock size={13} color="var(--coral)" /> 15-Minute Dynamic Holds & Async BullMQ
+                </strong>
+                <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+                  Upon entering checkout, seats lock exclusively for 15 minutes. If a user cancels or times out, background BullMQ workers instantly free the seats back to available.
+                </p>
+              </div>
+
+              <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
+                <strong style={{ color: 'var(--peach)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Bell size={13} color="var(--coral)" /> Batched 5-User Fair Waitlist Dispatcher
+                </strong>
+                <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+                  When seats open up, notifications trigger in <strong>batches of 5 users</strong> with a <strong>15-minute priority claim countdown</strong> before cascading to subsequent users in FIFO queue.
+                </p>
+              </div>
+
+              <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
+                <strong style={{ color: 'var(--peach)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <QrCode size={13} color="var(--green)" /> SHA-256 Gate QR Passes & Check-In
+                </strong>
+                <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+                  Confirmed bookings generate standalone QR passes. Venue staff can scan passes on mobile/desktop and check in attendees seat-by-seat with real-time audit logging.
+                </p>
+              </div>
             </div>
+          </section>
 
-            <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
-              <strong style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--peach)', fontSize: 13, marginBottom: 4 }}>
-                <Bell size={15} color="var(--coral)" /> Batched 5-User Waitlist Fairness
-              </strong>
-              <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-                When sold-out seats become available due to cancellations, Encore dispatches offers in <strong>priority batches of 5 users</strong> with a <strong>15-minute exclusive booking window</strong> before cascading to the next 5 users in queue.
-              </p>
-            </div>
-
-            <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
-              <strong style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--peach)', fontSize: 13, marginBottom: 4 }}>
-                <Utensils size={15} color="var(--coral)" /> Event-Adapted Dining Floorplans
-              </strong>
-              <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-                Dining events replace concert stages with restaurant table reservations (Table for 2, 4, and 6) with multi-table party selection and guest capacity tracking.
-              </p>
-            </div>
-
-            <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
-              <strong style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--peach)', fontSize: 13, marginBottom: 4 }}>
-                <QrCode size={15} color="var(--coral)" /> Gate QR Verification & Check-In
-              </strong>
-              <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-                Clean admission passes generate standalone QR codes. Venue staff and organisers can scan tickets and mark attendees present seat-by-seat with real-time audit logs.
-              </p>
+          {/* Full Tech Stack In Short */}
+          <section style={{ marginBottom: 20 }}>
+            <h2 style={{ font: '20px var(--serif)', color: 'var(--paper)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Layers size={18} color="var(--peach)" /> Tech Stack In Short
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+              <div style={{ padding: '10px 12px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 4 }}>
+                <span style={{ font: '10px var(--mono)', color: 'var(--peach)', textTransform: 'uppercase' }}>Frontend</span>
+                <strong style={{ display: 'block', color: 'var(--paper)', fontSize: 12, marginTop: 2 }}>Next.js 16 + Turbopack</strong>
+                <small style={{ color: '#8d827c', fontSize: 11 }}>App Router, SSR/SSG, React 19, Lucide</small>
+              </div>
+              <div style={{ padding: '10px 12px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 4 }}>
+                <span style={{ font: '10px var(--mono)', color: 'var(--green)', textTransform: 'uppercase' }}>Backend API</span>
+                <strong style={{ display: 'block', color: 'var(--paper)', fontSize: 12, marginTop: 2 }}>NestJS + TypeScript</strong>
+                <small style={{ color: '#8d827c', fontSize: 11 }}>Drizzle ORM, Zod, Throttling Guard</small>
+              </div>
+              <div style={{ padding: '10px 12px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 4 }}>
+                <span style={{ font: '10px var(--mono)', color: 'var(--coral)', textTransform: 'uppercase' }}>Database & Queue</span>
+                <strong style={{ display: 'block', color: 'var(--paper)', fontSize: 12, marginTop: 2 }}>PostgreSQL + BullMQ</strong>
+                <small style={{ color: '#8d827c', fontSize: 11 }}>Redis, ACID Locks, Async Workers</small>
+              </div>
+              <div style={{ padding: '10px 12px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 4 }}>
+                <span style={{ font: '10px var(--mono)', color: 'var(--peach)', textTransform: 'uppercase' }}>Real-time & Security</span>
+                <strong style={{ display: 'block', color: 'var(--paper)', fontSize: 12, marginTop: 2 }}>Socket.IO + Argon2id</strong>
+                <small style={{ color: '#8d827c', fontSize: 11 }}>JWT, SHA-256 Tokens, RBAC</small>
+              </div>
             </div>
           </section>
 
           {/* Signoff */}
-          <footer style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #2c2522', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 10 }}>
+          <footer style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #2c2522', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 10 }}>
             <div>
               <span style={{ color: 'var(--muted)', font: '11px var(--mono)' }}>Designed & built by</span>
               <strong style={{ display: 'block', color: 'var(--paper)', font: '18px var(--serif)' }}>Ajitesh Sharma</strong>

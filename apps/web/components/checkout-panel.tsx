@@ -221,10 +221,46 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
 
       const ref = result?.bookingRef || `ENC-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
       const tokenQuery = result?.qrToken ? `?token=${encodeURIComponent(result.qrToken)}` : '';
+
+      try {
+        const newNotif = {
+          id: `notif-${ref}`,
+          type: 'booking_confirmed',
+          title: 'Booking Confirmed',
+          message: `Your ticket pass for ${event.title} is ready. Present QR at gate.`,
+          timestamp: 'Just now',
+          link: `/booking/${ref}/confirmation${tokenQuery}`,
+          unread: true,
+        };
+        const existing = JSON.parse(window.localStorage.getItem('encore_user_notifications') || '[]');
+        const updated = [newNotif, ...existing.filter((n: any) => n.id !== newNotif.id)];
+        window.localStorage.setItem('encore_user_notifications', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('notification-added', { detail: newNotif }));
+      } catch {
+        // ignore
+      }
+
       setState('confirmed');
       router.push(`/booking/${ref}/confirmation${tokenQuery}`);
     } catch {
       const ref = `ENC-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+      try {
+        const newNotif = {
+          id: `notif-${ref}`,
+          type: 'booking_confirmed',
+          title: 'Booking Confirmed',
+          message: `Your ticket pass for ${event.title} is ready. Present QR at gate.`,
+          timestamp: 'Just now',
+          link: `/booking/${ref}/confirmation`,
+          unread: true,
+        };
+        const existing = JSON.parse(window.localStorage.getItem('encore_user_notifications') || '[]');
+        const updated = [newNotif, ...existing.filter((n: any) => n.id !== newNotif.id)];
+        window.localStorage.setItem('encore_user_notifications', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('notification-added', { detail: newNotif }));
+      } catch {
+        // ignore
+      }
       setState('confirmed');
       router.push(`/booking/${ref}/confirmation`);
     }

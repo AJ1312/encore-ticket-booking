@@ -86,8 +86,33 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
     }
   }
 
-  // Integrations (booking_confirmation, booking_cancellation, email_notification)
-  // are idempotent durable events that complete safely in the pipeline.
+  if (job.type === 'email_notification' || job.type === 'booking_confirmation') {
+    const payload = job.payload as { to?: string; subject?: string; bookingRef?: string; eventTitle?: string; html?: string };
+    const to = payload.to || 'customer@encore.local';
+    const subject = payload.subject || `Encore Pass Ready — ${payload.bookingRef || 'Booking Confirmed'}`;
+    
+    if (process.env.RESEND_API_KEY) {
+      try {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: process.env.FROM_EMAIL || 'Encore Concierge <tickets@encore.local>',
+            to,
+            subject,
+            html: payload.html || `<p>Your ticket pass for <strong>${payload.eventTitle || 'your event'}</strong> (${payload.bookingRef || 'Pass'}) is confirmed! Present your QR pass at the gate.</p>`,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to send email via Resend API:', err);
+      }
+    } else {
+      console.log(`[MailDispatcher] Dispatched ${job.type} to ${to} (Subject: "${subject}")`);
+    }
+  }
 }
 
 export async function allocateWaitlist(tx: any, showId: string, seatIds: string[]) {
