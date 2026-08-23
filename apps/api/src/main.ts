@@ -965,6 +965,25 @@ export class AppController {
   @Get('shows/:showId/seats')
   async showSeats(@Param('showId') showId: string, @Req() req: Request) {
     const u = await resolveUserOrGuest(req);
+    
+    const showMeta = await db
+      .select({
+        title: events.title,
+        description: events.description,
+        type: events.type,
+        posterUrl: events.posterUrl,
+        startsAt: shows.startsAt,
+        venue: venues.name,
+        city: venues.city,
+      })
+      .from(shows)
+      .innerJoin(events, eq(events.id, shows.eventId))
+      .innerJoin(venues, eq(venues.id, shows.venueId))
+      .where(eq(shows.id, showId))
+      .limit(1);
+
+    const meta = showMeta[0] || null;
+
     let result = await db
       .select({
         id: showSeats.id,
@@ -1001,7 +1020,7 @@ export class AppController {
         .innerJoin(seats, eq(showSeats.seatId, seats.id))
         .where(eq(showSeats.showId, showId));
     }
-    return { seats: result };
+    return { seats: result, show: meta };
   }
 
   @Public()

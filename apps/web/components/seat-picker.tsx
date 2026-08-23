@@ -26,9 +26,12 @@ type DiningTable = {
 
 export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: string }) {
   const router = useRouter();
-  const event = getEvent(eventId);
-  const showId = event.showId;
-  const isDining = event.kind === 'Dining';
+  const staticEvent = getEvent(eventId);
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+  const showId = isUUID ? eventId : staticEvent.showId;
+  const isDining = staticEvent.kind === 'Dining';
+
+  const [eventMeta, setEventMeta] = useState(staticEvent);
 
   const [seats, setSeats] = useState<Seat[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -113,9 +116,19 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
 
   function loadSeats() {
     if (!showId) return;
-    apiJson<{ seats: Seat[] }>(`/shows/${showId}/seats`)
+    apiJson<{ seats: Seat[]; show?: any }>(`/shows/${showId}/seats`)
       .then(result => {
         setSeats(result.seats || []);
+        if (result.show) {
+          setEventMeta(prev => ({
+            ...prev,
+            title: result.show.title,
+            venue: result.show.venue,
+            city: result.show.city,
+            date: new Date(result.show.startsAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
+            time: new Date(result.show.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          }));
+        }
       })
       .catch(() => null)
       .finally(() => {
@@ -308,7 +321,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
         </Link>
         <div className="booking-title-row">
           <div>
-            <span className="eyebrow">{isDining ? 'TABLE RESERVATION' : 'SEAT SELECTION'} · {event.venue}</span>
+            <span className="eyebrow">{isDining ? 'TABLE RESERVATION' : 'SEAT SELECTION'} · {eventMeta.venue}</span>
             <h1>
               {isDining ? (
                 <>
@@ -320,7 +333,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                 </>
               )}
             </h1>
-            <p>{event.date} 2026 · {event.time} · {event.city}</p>
+            <p>{eventMeta.date} 2026 · {eventMeta.time} · {eventMeta.city}</p>
           </div>
 
           {/* 15-Minute Hold Timer Pill */}
@@ -742,8 +755,8 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
         {/* Order Summary Aside */}
         <aside className="booking-summary">
           <span className="eyebrow">{isDining ? 'Dining Reservation' : 'Your evening'}</span>
-          <h2>{event.title}</h2>
-          <p className="summary-meta">{event.venue}, {event.city}<br />{event.date} 2026 · {event.time}</p>
+          <h2>{eventMeta.title}</h2>
+          <p className="summary-meta">{eventMeta.venue}, {eventMeta.city}<br />{eventMeta.date} 2026 · {eventMeta.time}</p>
           <div className="summary-rule" />
           <div className="summary-seats">
             <div>

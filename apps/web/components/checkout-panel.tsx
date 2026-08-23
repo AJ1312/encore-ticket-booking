@@ -14,9 +14,12 @@ type Seat = { id: string; row: string; number: number; pricePaise: number; statu
 export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?: string }) {
   const params = useSearchParams();
   const router = useRouter();
-  const event = getEvent(eventId);
+  const staticEvent = getEvent(eventId);
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+  const showId = isUUID ? eventId : staticEvent.showId;
   const seatIds = useMemo(() => (params.get('seats') || '').split(',').filter(Boolean), [params]);
 
+  const [eventMeta, setEventMeta] = useState(staticEvent);
   const [seats, setSeats] = useState<Seat[]>([]);
   const [holdId, setHoldId] = useState<string>();
   const [state, setState] = useState<'loading' | 'ready' | 'paying' | 'error' | 'confirmed'>('loading');
@@ -65,8 +68,18 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
     let isMounted = true;
     void (async () => {
       try {
-        if (event.showId) {
-          const inventory = await apiJson<{ seats: Seat[] }>(`/shows/${event.showId}/seats`).catch(() => null);
+        if (showId) {
+          const inventory = await apiJson<{ seats: Seat[]; show?: any }>(`/shows/${showId}/seats`).catch(() => null);
+          if (inventory && inventory.show) {
+            setEventMeta(prev => ({
+              ...prev,
+              title: inventory.show.title,
+              venue: inventory.show.venue,
+              city: inventory.show.city,
+              date: new Date(inventory.show.startsAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
+              time: new Date(inventory.show.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+            }));
+          }
           if (inventory && inventory.seats) {
             const chosen = inventory.seats.filter(seat => seatIds.includes(seat.id));
             if (chosen.length > 0) setSeats(chosen);
@@ -78,7 +91,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
             setHoldId(paramHoldId);
           } else {
             // Attempt to create hold if not already passed
-            const hold = await apiJson<{ holdId: string; heldUntil?: string }>(`/shows/${event.showId}/hold`, {
+            const hold = await apiJson<{ holdId: string; heldUntil?: string }>(`/shows/${showId}/hold`, {
               method: 'POST',
               body: JSON.stringify({ seatIds }),
             }).catch(err => {
@@ -123,7 +136,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
     return () => {
       isMounted = false;
     };
-  }, [event.showId, seatIds, params]);
+  }, [showId, seatIds, params]);
 
   // 15-minute hold timer countdown
   useEffect(() => {
@@ -213,13 +226,13 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
   }
 
   async function cancelAndRelease() {
-    if (event.showId && (holdId || seatIds.length)) {
-      await apiJson(`/shows/${event.showId}/release-hold`, {
+    if (showId && (holdId || seatIds.length)) {
+      await apiJson(`/shows/${showId}/release-hold`, {
         method: 'POST',
-        body: JSON.stringify({ seatIds, holdId }),
+        body: JSON.stringify({ showId, seatIds, holdId }),
       }).catch(() => null);
     }
-    router.push(`/shows/${eventId}`);
+    router.push(`/shows/${showId}`);
   }
 
   async function executeConfirmation() {
@@ -549,10 +562,10 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           >
             <span className="eyebrow">Order summary</span>
             <h2 style={{ font: '28px var(--serif)', color: 'var(--paper)', margin: '8px 0 4px', fontWeight: 400 }}>
-              {event.title}
+              {eventMeta.title}
             </h2>
             <p style={{ color: 'var(--muted)', fontSize: 12, margin: '0 0 16px' }}>
-              {event.venue}, {event.city}<br />{event.date} 2026 · {event.time}
+              {eventMeta.venue}, {eventMeta.city}<br />{eventMeta.date} 2026 · {eventMeta.time}
             </p>
 
             <div className="order-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #282b30', font: '11px var(--mono)' }}>
