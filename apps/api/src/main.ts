@@ -96,7 +96,7 @@ export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 const secret = () => process.env.JWT_ACCESS_SECRET || 'local-development-secret';
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const accessToken = (u: { id: string; name: string; email: string; role: Role }) =>
-  jwt.sign({ sub: u.id, name: u.name, email: u.email, role: u.role }, secret(), { expiresIn: '15m' });
+  jwt.sign({ sub: u.id, name: u.name, email: u.email, role: u.role }, secret(), { expiresIn: '7d' });
 
 function setCookie(res: Response, name: string, value: string, maxAge: number) {
   const isProd = process.env.NODE_ENV === 'production';
@@ -1710,9 +1710,10 @@ export class AppController {
       tokenHash: digest(refresh),
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
-    setCookie(res, 'encore_access', token, 15 * 60 * 1000);
+    setCookie(res, 'encore_access', token, 7 * 24 * 60 * 60 * 1000);
     setCookie(res, 'encore_refresh', refresh, 30 * 24 * 60 * 60 * 1000);
-    return { session: { id: u.id, name: u.name, email: u.email, role: u.role }, accessToken: token };
+    // Return refreshToken in body so client can store it in localStorage as cross-domain fallback
+    return { session: { id: u.id, name: u.name, email: u.email, role: u.role }, accessToken: token, refreshToken: refresh };
   }
 }
 

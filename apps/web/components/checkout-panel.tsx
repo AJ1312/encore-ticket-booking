@@ -209,16 +209,8 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
       } catch {
         // ignore
       }
-    } catch {
-      // Create authenticated guest session if offline/demo
-      const activeUser = { id: `usr-${Date.now()}`, name: authName || authEmail.split('@')[0] || 'Aarav Sharma', email: authEmail || 'customer@encore.local' };
-      setUser(activeUser);
-      try {
-        window.localStorage.setItem('encore_profile', JSON.stringify({ ...activeUser, role: 'customer' }));
-        window.dispatchEvent(new CustomEvent('profile-updated', { detail: activeUser }));
-      } catch {
-        // ignore
-      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Invalid credentials or unable to sign in.');
     } finally {
       setAuthSubmitting(false);
     }

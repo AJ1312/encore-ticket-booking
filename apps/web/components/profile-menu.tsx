@@ -34,7 +34,13 @@ export function ProfileMenu() {
           }
         }
       })
-      .catch(() => null);
+      .catch(() => {
+        setSession(null);
+        try {
+          window.localStorage.removeItem('encore_profile');
+          window.localStorage.removeItem('encore_token');
+        } catch {}
+      });
   }
 
   useEffect(() => {
@@ -62,6 +68,7 @@ export function ProfileMenu() {
   function signOut() {
     try {
       window.localStorage.removeItem('encore_profile');
+      window.localStorage.removeItem('encore_token');
     } catch {
       // ignore
     }
