@@ -255,7 +255,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           id: `notif-${ref}`,
           type: 'booking_confirmed',
           title: 'Booking Confirmed',
-          message: `Your ticket pass for ${event.title} is ready. Present QR at gate.`,
+          message: `Your ticket pass for ${eventMeta.title} is ready. Present QR at gate.`,
           timestamp: 'Just now',
           link: `/booking/${ref}/confirmation${tokenQuery}`,
           unread: true,
@@ -277,7 +277,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           id: `notif-${ref}`,
           type: 'booking_confirmed',
           title: 'Booking Confirmed',
-          message: `Your ticket pass for ${event.title} is ready. Present QR at gate.`,
+          message: `Your ticket pass for ${eventMeta.title} is ready. Present QR at gate.`,
           timestamp: 'Just now',
           link: `/booking/${ref}/confirmation`,
           unread: true,
@@ -314,7 +314,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           <ArrowLeft size={15} /> Cancel & Return to seats
         </button>
 
-        <span className="eyebrow">{event.title} · {event.venue}</span>
+        <span className="eyebrow">{eventMeta.title} · {eventMeta.venue}</span>
         <h1 style={{ margin: '14px 0 10px', font: 'clamp(44px,6vw,76px) var(--serif)', fontWeight: 400, color: 'var(--paper)' }}>
           Secure your<br /><em>evening.</em>
         </h1>
