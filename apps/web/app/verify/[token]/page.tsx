@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, MapPin, ShieldCheck, UserCheck, AlertCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, MapPin, ShieldCheck, UserCheck, AlertCircle, Calendar, Ticket, Clock } from 'lucide-react';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { use, useEffect, useState } from 'react';
@@ -64,7 +64,7 @@ export default function VerificationPage({ params }: { params: Promise<{ token: 
             venue: 'Riverside Grounds',
             address: 'Bandra West, Mumbai',
             city: 'Mumbai',
-            customerName: 'Encore Verified Customer',
+            customerName: 'Aarav Sharma',
             customerEmail: 'customer@encore.local',
             seats: [
               { seatId: 's1', row: 'A', number: 1, section: 'Premium', category: 'Premium', pricePaise: 149900, checkedInAt: null },
@@ -126,85 +126,144 @@ export default function VerificationPage({ params }: { params: Promise<{ token: 
 
   const currentUrl = typeof window !== 'undefined' ? window.location.href : `https://encore-ticket-booking-web.vercel.app/verify/${token}`;
 
+  const allAdmitted = data ? data.seats.every(s => Boolean(s.checkedInAt)) : false;
+
   return (
-    <main className="verify-page">
+    <main className="verify-page" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <PortalNav />
-      <div className="verify-wrap" style={{ maxWidth: 900, margin: '0 auto', padding: '60px 24px' }}>
-        <Link href="/" className="back-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--peach)', marginBottom: 24, font: '11px var(--mono)', textTransform: 'uppercase' }}>
-          <ArrowLeft size={15} /> Return Home
+      <div className="verify-wrap" style={{ maxWidth: 920, margin: '0 auto', padding: '32px 16px 80px' }}>
+        <Link
+          href="/"
+          className="back-link"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            color: 'var(--peach)',
+            marginBottom: 20,
+            font: '10px var(--mono)',
+            textTransform: 'uppercase',
+          }}
+        >
+          <ArrowLeft size={14} /> Return Home
         </Link>
 
         {loading ? (
           <div className="empty-state">Verifying QR token authenticity…</div>
         ) : error ? (
-          <div className="empty-state" style={{ background: '#1c1616', border: '1px solid #4a2b2b' }}>
-            <AlertCircle size={36} color="#ff7070" style={{ margin: '0 auto 16px' }} />
-            <h3 style={{ color: '#ff7070' }}>QR Verification Failed</h3>
-            <p style={{ color: '#c0b6af' }}>{error}</p>
+          <div className="empty-state" style={{ background: '#1c1616', border: '1px solid #4a2b2b', padding: 24, borderRadius: 8 }}>
+            <AlertCircle size={36} color="#ff7070" style={{ margin: '0 auto 14px' }} />
+            <h3 style={{ color: '#ff7070', fontSize: 20 }}>QR Verification Failed</h3>
+            <p style={{ color: '#c0b6af', fontSize: 13 }}>{error}</p>
           </div>
         ) : data ? (
           <>
+            {/* Status Header */}
             <div
-              className={`verify-status-badge ${data.status === 'confirmed' ? 'confirmed' : 'cancelled'}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 16px',
-                background: '#16281e',
-                border: '1px solid #326442',
+                padding: '6px 14px',
+                background: data.status === 'confirmed' ? '#16281e' : '#2d1815',
+                border: `1px solid ${data.status === 'confirmed' ? '#326442' : '#6b2d24'}`,
                 borderRadius: 999,
-                color: 'var(--green)',
-                font: '11px var(--mono)',
+                color: data.status === 'confirmed' ? 'var(--green)' : 'var(--coral)',
+                font: '10px var(--mono)',
                 textTransform: 'uppercase',
-                marginBottom: 16,
+                marginBottom: 14,
               }}
             >
-              <ShieldCheck size={16} /> QR Ticket Cryptographically Verified · {data.status.toUpperCase()}
+              <ShieldCheck size={14} /> Cryptographically Verified · {data.status.toUpperCase()}
             </div>
 
-            <h1 style={{ margin: '0 0 10px', font: 'clamp(44px,6vw,68px) var(--serif)', fontWeight: 400, color: 'var(--paper)' }}>
+            <h1
+              style={{
+                margin: '0 0 8px',
+                font: 'clamp(32px, 5vw, 54px) var(--serif)',
+                fontWeight: 400,
+                color: 'var(--paper)',
+                lineHeight: 1.05,
+              }}
+            >
               {data.eventTitle}
             </h1>
-            <p style={{ margin: '0 0 30px', color: 'var(--muted)', fontSize: 14 }}>
-              <MapPin size={14} style={{ display: 'inline', marginRight: 6, color: 'var(--coral)' }} />
-              {data.venue}, {data.city} · {new Date(data.startsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </p>
 
-            <div className="verify-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, color: '#c0b6af', fontSize: 13, marginBottom: 24 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <MapPin size={14} color="var(--coral)" /> {data.venue}, {data.city}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Calendar size={14} color="var(--coral)" />{' '}
+                {new Date(data.startsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Clock size={14} color="var(--coral)" />{' '}
+                {new Date(data.startsAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            </div>
+
+            <div className="verify-grid-responsive">
+              {/* Main Check-in Column */}
               <div>
-                <div style={{ padding: 24, border: '1px solid #2b2523', background: '#141618', borderRadius: 6, marginBottom: 24 }}>
-                  <h3 style={{ margin: '0 0 16px', font: '22px var(--serif)', color: 'var(--paper)', fontWeight: 400 }}>
-                    Booking Details
+                {/* Booking Meta Summary */}
+                <div
+                  style={{
+                    padding: 20,
+                    border: '1px solid #2b2523',
+                    background: '#141618',
+                    borderRadius: 6,
+                    marginBottom: 20,
+                  }}
+                >
+                  <h3 style={{ margin: '0 0 14px', font: '18px var(--serif)', color: 'var(--paper)', fontWeight: 400 }}>
+                    Booking Pass Details
                   </h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, font: '11px var(--mono)', color: '#c0b6af' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 14, font: '11px var(--mono)' }}>
                     <div>
-                      <span style={{ color: 'var(--muted)', display: 'block' }}>Reference</span>
+                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Reference</span>
                       <strong style={{ color: 'var(--peach)', font: '14px var(--mono)' }}>{data.bookingRef}</strong>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--muted)', display: 'block' }}>Attendee</span>
+                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Attendee</span>
                       <strong style={{ color: 'var(--paper)' }}>{data.customerName}</strong>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--muted)', display: 'block' }}>Email</span>
-                      <strong style={{ color: 'var(--paper)' }}>{data.customerEmail}</strong>
+                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Seats</span>
+                      <strong style={{ color: 'var(--paper)' }}>{data.seats.length} Confirmed</strong>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--muted)', display: 'block' }}>Total Paid</span>
+                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Total Paid</span>
                       <strong style={{ color: 'var(--paper)' }}>₹{Math.round(data.totalPaise / 100).toLocaleString('en-IN')}</strong>
                     </div>
                   </div>
                 </div>
 
-                {/* Staff Attendance Gate Check-in */}
-                <div style={{ padding: 24, border: '1px solid #2b2523', background: '#141618', borderRadius: 6 }}>
-                  <h3 style={{ margin: '0 0 6px', font: '22px var(--serif)', color: 'var(--paper)', fontWeight: 400 }}>
-                    Staff Gate Entry Check-in
-                  </h3>
-                  <p style={{ margin: '0 0 16px', color: 'var(--muted)', fontSize: 12 }}>
-                    Organisers and gate staff can select seats to admit attendees.
-                  </p>
+                {/* Gate Entry Check-in */}
+                <div
+                  style={{
+                    padding: 20,
+                    border: '1px solid #2b2523',
+                    background: '#141618',
+                    borderRadius: 6,
+                    marginBottom: 20,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <h3 style={{ margin: 0, font: '20px var(--serif)', color: 'var(--paper)', fontWeight: 400 }}>
+                        Gate Admission Check-in
+                      </h3>
+                      <small style={{ color: 'var(--muted)', fontSize: 11 }}>
+                        Select attendee seats to mark present
+                      </small>
+                    </div>
+                    {allAdmitted && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--green)', font: '11px var(--mono)', padding: '4px 10px', background: '#16281e', borderRadius: 999 }}>
+                        <CheckCircle2 size={14} /> All Admitted
+                      </span>
+                    )}
+                  </div>
 
                   <div className="verify-seats" style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
                     {data.seats.map(seat => {
@@ -214,35 +273,46 @@ export default function VerificationPage({ params }: { params: Promise<{ token: 
                       return (
                         <div
                           key={seat.seatId}
+                          onClick={() => {
+                            if (!isCheckedIn) toggleSeat(seat.seatId);
+                          }}
                           style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            padding: '12px 16px',
-                            background: '#191b1e',
-                            border: '1px solid #282b30',
-                            borderRadius: 4,
+                            padding: '14px 16px',
+                            background: isCheckedIn ? '#121815' : isSelected ? '#251b17' : '#191b1e',
+                            border: `1px solid ${isCheckedIn ? '#274b34' : isSelected ? 'var(--coral)' : '#282b30'}`,
+                            borderRadius: 6,
+                            cursor: isCheckedIn ? 'default' : 'pointer',
+                            transition: 'all 0.15s',
                           }}
                         >
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: isCheckedIn ? 'default' : 'pointer' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: isCheckedIn ? 'default' : 'pointer', width: '100%' }}>
                             <input
                               type="checkbox"
                               disabled={isCheckedIn}
                               checked={isCheckedIn || isSelected}
                               onChange={() => toggleSeat(seat.seatId)}
-                              style={{ accentColor: 'var(--coral)', width: 16, height: 16 }}
+                              style={{ accentColor: 'var(--coral)', width: 18, height: 18, cursor: isCheckedIn ? 'default' : 'pointer' }}
                             />
-                            <span style={{ font: '13px var(--mono)', color: isCheckedIn ? '#6c757d' : 'var(--paper)' }}>
-                              Row {seat.row} · Seat {seat.number} ({seat.category || 'Standard'})
-                            </span>
+                            <div>
+                              <strong style={{ font: '13px var(--mono)', color: isCheckedIn ? '#839386' : 'var(--paper)', display: 'block' }}>
+                                Row {seat.row} · Seat {seat.number}
+                              </strong>
+                              <small style={{ color: 'var(--muted)', fontSize: 11 }}>
+                                {seat.category || 'Standard'} Tier
+                              </small>
+                            </div>
                           </label>
-                          <div>
+
+                          <div style={{ textAlign: 'right', minWidth: 120 }}>
                             {isCheckedIn ? (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--green)', font: '11px var(--mono)' }}>
-                                <CheckCircle2 size={14} /> Admitted at {new Date(seat.checkedInAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green)', font: '10px var(--mono)' }}>
+                                <CheckCircle2 size={13} /> Present
                               </span>
                             ) : (
-                              <span style={{ color: 'var(--muted)', font: '11px var(--mono)' }}>Awaiting Check-in</span>
+                              <span style={{ color: 'var(--muted)', font: '10px var(--mono)' }}>Ready for Entry</span>
                             )}
                           </div>
                         </div>
@@ -251,40 +321,60 @@ export default function VerificationPage({ params }: { params: Promise<{ token: 
                   </div>
 
                   {checkinMsg && (
-                    <p style={{ margin: '0 0 14px', color: 'var(--green)', fontSize: 12, font: '11px var(--mono)' }}>
+                    <div style={{ padding: '10px 14px', background: '#16281e', border: '1px solid #326442', color: 'var(--green)', borderRadius: 4, marginBottom: 14, font: '11px var(--mono)' }}>
                       {checkinMsg}
-                    </p>
+                    </div>
                   )}
 
                   <button
+                    type="button"
                     onClick={markPresent}
                     disabled={!selectedSeats.length || checkingIn}
                     className="coral-button"
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    style={{
+                      width: '100%',
+                      padding: '14px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      fontSize: 13,
+                    }}
                   >
-                    <UserCheck size={16} />
-                    {selectedSeats.length ? `Admit & Check In ${selectedSeats.length} Attendee(s)` : 'All Seats Admitted'}
+                    <UserCheck size={17} />
+                    {selectedSeats.length
+                      ? `Admit & Check In ${selectedSeats.length} Attendee(s)`
+                      : allAdmitted
+                      ? '✓ All Attendees Checked In'
+                      : 'Select Seats to Check In'}
                   </button>
                 </div>
               </div>
 
-              {/* QR Token Visual */}
-              <div
-                style={{
-                  background: '#141618',
-                  padding: 24,
-                  border: '1px solid #2b2523',
-                  borderRadius: 6,
-                  textAlign: 'center',
-                }}
-              >
-                <QRCodeDisplay value={currentUrl} size={170} />
-                <span style={{ display: 'block', font: '10px var(--mono)', color: 'var(--muted)', marginTop: 12 }}>
-                  TOKEN // {token.slice(0, 16)}…
-                </span>
-                <span style={{ display: 'block', font: '11px var(--mono)', color: 'var(--green)', marginTop: 4 }}>
-                  ✓ Cryptographically Authenticated
-                </span>
+              {/* Scanned QR Visual Column */}
+              <div>
+                <div
+                  style={{
+                    background: '#141618',
+                    padding: 22,
+                    border: '1px solid #2b2523',
+                    borderRadius: 6,
+                    textAlign: 'center',
+                  }}
+                >
+                  <span style={{ display: 'block', font: '10px var(--mono)', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>
+                    Scanned Ticket QR
+                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <QRCodeDisplay value={currentUrl} size={150} />
+                  </div>
+                  <span style={{ display: 'block', font: '10px var(--mono)', color: 'var(--muted)', marginTop: 12 }}>
+                    REF // {data.bookingRef}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, font: '11px var(--mono)', color: 'var(--green)', marginTop: 4 }}>
+                    <ShieldCheck size={13} /> Genuine Ticket
+                  </span>
+                </div>
               </div>
             </div>
           </>
