@@ -152,24 +152,37 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
     setAuthSubmitting(true);
 
     try {
+      let activeUser: { id: string; name: string; email: string };
       if (authMode === 'signin') {
         const res = await apiJson<{ session?: { id: string; name: string; email: string }; user?: { id: string; name: string; email: string } }>('/auth/login', {
           method: 'POST',
           body: JSON.stringify({ email: authEmail, password: authPassword }),
         });
-        const activeUser = res.session || res.user || { id: 'usr-1', name: authEmail.split('@')[0], email: authEmail };
-        setUser(activeUser);
+        activeUser = res.session || res.user || { id: 'usr-1', name: authEmail.split('@')[0], email: authEmail };
       } else {
         const res = await apiJson<{ session?: { id: string; name: string; email: string }; user?: { id: string; name: string; email: string } }>('/auth/register', {
           method: 'POST',
           body: JSON.stringify({ name: authName || authEmail.split('@')[0], email: authEmail, password: authPassword }),
         });
-        const activeUser = res.session || res.user || { id: 'usr-1', name: authName || authEmail.split('@')[0], email: authEmail };
-        setUser(activeUser);
+        activeUser = res.session || res.user || { id: 'usr-1', name: authName || authEmail.split('@')[0], email: authEmail };
+      }
+      setUser(activeUser);
+      try {
+        window.localStorage.setItem('encore_profile', JSON.stringify({ ...activeUser, role: 'customer' }));
+        window.dispatchEvent(new CustomEvent('profile-updated', { detail: activeUser }));
+      } catch {
+        // ignore
       }
     } catch {
       // Create authenticated guest session if offline/demo
-      setUser({ id: `usr-${Date.now()}`, name: authName || authEmail.split('@')[0] || 'Aarav Sharma', email: authEmail || 'customer@encore.local' });
+      const activeUser = { id: `usr-${Date.now()}`, name: authName || authEmail.split('@')[0] || 'Aarav Sharma', email: authEmail || 'customer@encore.local' };
+      setUser(activeUser);
+      try {
+        window.localStorage.setItem('encore_profile', JSON.stringify({ ...activeUser, role: 'customer' }));
+        window.dispatchEvent(new CustomEvent('profile-updated', { detail: activeUser }));
+      } catch {
+        // ignore
+      }
     } finally {
       setAuthSubmitting(false);
     }

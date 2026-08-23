@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X, Users, Utensils } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { PortalFooter } from './portal-footer';
@@ -13,10 +13,21 @@ import { io } from 'socket.io-client';
 type SeatStatus = 'available' | 'held' | 'booked' | 'blocked' | 'sold';
 type Seat = { id: string; row: string; number: number; pricePaise: number; status: SeatStatus; category?: string; section?: string };
 
+type DiningTable = {
+  id: string;
+  tableLabel: string;
+  capacity: 2 | 4 | 6;
+  category: string;
+  pricePaise: number;
+  status: SeatStatus;
+};
+
 export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: string }) {
   const router = useRouter();
   const event = getEvent(eventId);
   const showId = event.showId;
+  const isDining = event.kind === 'Dining';
+
   const [seats, setSeats] = useState<Seat[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +39,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
 
   // Notify / Waitlist modal state
   const [waitlistOpen, setWaitlistOpen] = useState(false);
-  const [waitlistCategory, setWaitlistCategory] = useState('Premium');
+  const [waitlistCategory, setWaitlistCategory] = useState(isDining ? 'Table for 4' : 'Premium');
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistSuccess, setWaitlistSuccess] = useState(false);
   const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
@@ -49,10 +60,43 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const total = useMemo(
-    () => selected.reduce((sum, id) => sum + (seats.find(seat => seat.id === id)?.pricePaise || 0), 0),
-    [selected, seats]
-  );
+  // Convert raw show seats to structured dining tables if isDining
+  const diningTables: DiningTable[] = useMemo(() => {
+    if (!isDining) return [];
+    // 12 curated dining tables: 4 of 2-top, 5 of 4-top, 3 of 6-top
+    return [
+      { id: seats[0]?.id || 't1', tableLabel: 'T1', capacity: 2, category: 'Table for 2', pricePaise: 180000, status: seats[0]?.status || 'available' },
+      { id: seats[1]?.id || 't2', tableLabel: 'T2', capacity: 2, category: 'Table for 2', pricePaise: 180000, status: seats[1]?.status || 'available' },
+      { id: seats[2]?.id || 't3', tableLabel: 'T3', capacity: 2, category: 'Table for 2', pricePaise: 180000, status: seats[2]?.status || 'available' },
+      { id: seats[3]?.id || 't4', tableLabel: 'T4', capacity: 2, category: 'Table for 2', pricePaise: 180000, status: seats[3]?.status || 'available' },
+      { id: seats[4]?.id || 't5', tableLabel: 'T5', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[4]?.status || 'available' },
+      { id: seats[5]?.id || 't6', tableLabel: 'T6', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[5]?.status || 'available' },
+      { id: seats[6]?.id || 't7', tableLabel: 'T7', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[6]?.status || 'available' },
+      { id: seats[7]?.id || 't8', tableLabel: 'T8', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[7]?.status || 'available' },
+      { id: seats[8]?.id || 't9', tableLabel: 'T9', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[8]?.status || 'available' },
+      { id: seats[9]?.id || 't10', tableLabel: 'T10', capacity: 6, category: 'Table for 6', pricePaise: 540000, status: seats[9]?.status || 'available' },
+      { id: seats[10]?.id || 't11', tableLabel: 'T11', capacity: 6, category: 'Table for 6', pricePaise: 540000, status: seats[10]?.status || 'available' },
+      { id: seats[11]?.id || 't12', tableLabel: 'T12', capacity: 6, category: 'Table for 6', pricePaise: 540000, status: seats[11]?.status || 'available' },
+    ];
+  }, [isDining, seats]);
+
+  const total = useMemo(() => {
+    if (isDining) {
+      return selected.reduce((sum, id) => {
+        const table = diningTables.find(t => t.id === id);
+        return sum + (table?.pricePaise || 180000);
+      }, 0);
+    }
+    return selected.reduce((sum, id) => sum + (seats.find(seat => seat.id === id)?.pricePaise || 0), 0);
+  }, [selected, seats, isDining, diningTables]);
+
+  const totalDiners = useMemo(() => {
+    if (!isDining) return selected.length;
+    return selected.reduce((sum, id) => {
+      const table = diningTables.find(t => t.id === id);
+      return sum + (table?.capacity || 2);
+    }, 0);
+  }, [isDining, selected, diningTables]);
 
   function loadSeats() {
     if (!showId) return;
@@ -70,7 +114,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
 
   useEffect(() => {
     if (!showId) {
-      setError('This show is not connected to a live inventory yet.');
+      setError('This event is not connected to live inventory yet.');
       setLoading(false);
       return;
     }
@@ -94,10 +138,23 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
   }, [showId]);
 
   function toggle(id: string) {
+    if (isDining) {
+      const table = diningTables.find(t => t.id === id);
+      if (!table) return;
+      if (table.status === 'booked' || table.status === 'blocked' || table.status === 'sold') {
+        setWaitlistCategory(table.category);
+        setWaitlistOpen(true);
+        return;
+      }
+      setSelected(current =>
+        current.includes(id) ? current.filter(val => val !== id) : [...current, id]
+      );
+      return;
+    }
+
     const seat = seats.find(value => value.id === id);
     if (!seat) return;
     if (seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold') {
-      // Open waitlist notification for sold seats
       setWaitlistCategory(seat.category || 'Standard');
       setWaitlistOpen(true);
       return;
@@ -136,13 +193,12 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
     router.push(`/shows/${eventId}/checkout?seats=${query}`);
   }
 
-  const premiumCount = seats.filter(s => s.category === 'Premium' && (s.status === 'available' || s.status === 'held')).length;
-  const standardCount = seats.filter(s => s.category === 'Standard' && (s.status === 'available' || s.status === 'held')).length;
-  const economyCount = seats.filter(s => s.category === 'Economy' && (s.status === 'available' || s.status === 'held')).length;
-  const bookedCount = seats.filter(s => s.status === 'booked' || s.status === 'blocked' || s.status === 'sold').length;
+  const table2Count = diningTables.filter(t => t.capacity === 2 && t.status === 'available').length;
+  const table4Count = diningTables.filter(t => t.capacity === 4 && t.status === 'available').length;
+  const table6Count = diningTables.filter(t => t.capacity === 6 && t.status === 'available').length;
 
   return (
-    <main className="booking-page">
+    <main className="booking-page" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <PortalNav />
       <section className="booking-head">
         <Link href="/events" className="back-link">
@@ -150,12 +206,22 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
         </Link>
         <div className="booking-title-row">
           <div>
-            <span className="eyebrow">{event.title} · {event.venue}</span>
-            <h1>Choose your<br /><em>seats.</em></h1>
+            <span className="eyebrow">{isDining ? 'TABLE RESERVATION' : 'SEAT SELECTION'} · {event.venue}</span>
+            <h1>
+              {isDining ? (
+                <>
+                  Reserve your<br /><em>table.</em>
+                </>
+              ) : (
+                <>
+                  Choose your<br /><em>seats.</em>
+                </>
+              )}
+            </h1>
             <p>{event.date} 2026 · {event.time} · {event.city}</p>
           </div>
 
-          {/* Clean User-Friendly Hold Timer Pill */}
+          {/* 15-Minute Hold Timer Pill */}
           <div
             className="hold-note"
             style={{
@@ -180,105 +246,257 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                 </span>
               </div>
               <span style={{ fontSize: 11, color: '#c0b6af', display: 'block', marginTop: 2 }}>
-                Seats reserved exclusively for you
+                {isDining ? 'Tables held exclusively for your party' : 'Seats reserved exclusively for you'}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Pricing Category Color Chips & Notify Bell */}
-        <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={() => setFilterCategory(prev => (prev === 'Premium' ? null : 'Premium'))}
-            style={{
-              padding: '8px 16px',
-              background: filterCategory === 'Premium' ? '#3d241c' : '#231815',
-              border: `2px solid #e07a5f`,
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(224, 122, 95, 0.2)',
-            }}
-          >
-            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#e07a5f', display: 'inline-block', boxShadow: '0 0 8px #e07a5f' }} />
-            <strong style={{ font: '13px var(--sans)', color: '#ffd8cc' }}>Premium · ₹1,499</strong>
-            <span style={{ font: '11px var(--mono)', color: '#e07a5f' }}>({premiumCount} available)</span>
-          </button>
+        {/* Pricing Category Chips & Notify Bell */}
+        {isDining ? (
+          <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setFilterCategory(prev => (prev === '2' ? null : '2'))}
+              style={{
+                padding: '10px 18px',
+                background: filterCategory === '2' ? '#3d241c' : '#231815',
+                border: `2px solid #e07a5f`,
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+              }}
+            >
+              <Users size={16} color="#e07a5f" />
+              <strong style={{ font: '13px var(--sans)', color: '#ffd8cc' }}>Table for 2 · ₹1,800</strong>
+              <span style={{ font: '11px var(--mono)', color: '#e07a5f' }}>({table2Count} left)</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setFilterCategory(prev => (prev === 'Standard' ? null : 'Standard'))}
-            style={{
-              padding: '8px 16px',
-              background: filterCategory === 'Standard' ? '#1c3624' : '#142318',
-              border: `2px solid #3a7750`,
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(58, 119, 80, 0.2)',
-            }}
-          >
-            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#52b788', display: 'inline-block', boxShadow: '0 0 8px #52b788' }} />
-            <strong style={{ font: '13px var(--sans)', color: '#d8f3dc' }}>Standard · ₹999</strong>
-            <span style={{ font: '11px var(--mono)', color: '#52b788' }}>({standardCount} available)</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setFilterCategory(prev => (prev === '4' ? null : '4'))}
+              style={{
+                padding: '10px 18px',
+                background: filterCategory === '4' ? '#1c3624' : '#142318',
+                border: `2px solid #3a7750`,
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+              }}
+            >
+              <Users size={16} color="#52b788" />
+              <strong style={{ font: '13px var(--sans)', color: '#d8f3dc' }}>Table for 4 · ₹3,600</strong>
+              <span style={{ font: '11px var(--mono)', color: '#52b788' }}>({table4Count} left)</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setFilterCategory(prev => (prev === 'Economy' ? null : 'Economy'))}
-            style={{
-              padding: '8px 16px',
-              background: filterCategory === 'Economy' ? '#1c2836' : '#131b24',
-              border: `2px solid #415a77`,
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(65, 90, 119, 0.2)',
-            }}
-          >
-            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#748cab', display: 'inline-block', boxShadow: '0 0 8px #748cab' }} />
-            <strong style={{ font: '13px var(--sans)', color: '#e0e1dd' }}>Economy · ₹699</strong>
-            <span style={{ font: '11px var(--mono)', color: '#748cab' }}>({economyCount} available)</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setFilterCategory(prev => (prev === '6' ? null : '6'))}
+              style={{
+                padding: '10px 18px',
+                background: filterCategory === '6' ? '#1c2836' : '#131b24',
+                border: `2px solid #415a77`,
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+              }}
+            >
+              <Users size={16} color="#748cab" />
+              <strong style={{ font: '13px var(--sans)', color: '#e0e1dd' }}>Table for 6 · ₹5,400</strong>
+              <span style={{ font: '11px var(--mono)', color: '#748cab' }}>({table6Count} left)</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setWaitlistOpen(true)}
-            style={{
-              padding: '8px 14px',
-              background: '#1c1715',
-              border: '1px solid #5a3c2f',
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              cursor: 'pointer',
-              color: 'var(--peach)',
-            }}
-          >
-            <Bell size={14} color="var(--coral)" />
-            <span style={{ font: '12px var(--mono)', textTransform: 'uppercase' }}>Notify when sold seats open</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setWaitlistOpen(true)}
+              style={{
+                padding: '10px 16px',
+                background: '#1c1715',
+                border: '1px solid #5a3c2f',
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                color: 'var(--peach)',
+              }}
+            >
+              <Bell size={14} color="var(--coral)" />
+              <span style={{ font: '11px var(--mono)', textTransform: 'uppercase' }}>Notify when tables open</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setFilterCategory(prev => (prev === 'Premium' ? null : 'Premium'))}
+              style={{
+                padding: '8px 16px',
+                background: filterCategory === 'Premium' ? '#3d241c' : '#231815',
+                border: `2px solid #e07a5f`,
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#e07a5f', display: 'inline-block' }} />
+              <strong style={{ font: '13px var(--sans)', color: '#ffd8cc' }}>Premium · ₹1,499</strong>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterCategory(prev => (prev === 'Standard' ? null : 'Standard'))}
+              style={{
+                padding: '8px 16px',
+                background: filterCategory === 'Standard' ? '#1c3624' : '#142318',
+                border: `2px solid #3a7750`,
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#52b788', display: 'inline-block' }} />
+              <strong style={{ font: '13px var(--sans)', color: '#d8f3dc' }}>Standard · ₹999</strong>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterCategory(prev => (prev === 'Economy' ? null : 'Economy'))}
+              style={{
+                padding: '8px 16px',
+                background: filterCategory === 'Economy' ? '#1c2836' : '#131b24',
+                border: `2px solid #415a77`,
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#748cab', display: 'inline-block' }} />
+              <strong style={{ font: '13px var(--sans)', color: '#e0e1dd' }}>Economy · ₹699</strong>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setWaitlistOpen(true)}
+              style={{
+                padding: '8px 14px',
+                background: '#1c1715',
+                border: '1px solid #5a3c2f',
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                color: 'var(--peach)',
+              }}
+            >
+              <Bell size={14} color="var(--coral)" />
+              <span style={{ font: '12px var(--mono)', textTransform: 'uppercase' }}>Notify when seats open</span>
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="booking-area">
         <div className="map-column">
           {loading ? (
-            <div className="empty-state">Loading live seat inventory…</div>
+            <div className="empty-state">{isDining ? 'Loading dining room floorplan…' : 'Loading live seat inventory…'}</div>
           ) : error ? (
             <div className="empty-state">
-              <h3>Seats unavailable</h3>
+              <h3>Inventory unavailable</h3>
               <p>{error}</p>
             </div>
+          ) : isDining ? (
+            /* ── RESTAURANT DINING FLOORPLAN ── */
+            <div className="seat-canvas" style={{ background: '#0e1012', border: '1px solid #23272d', borderRadius: 8, padding: 32 }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                <span style={{ letterSpacing: '0.3em', fontWeight: 700, fontSize: 12, color: 'var(--peach)', textTransform: 'uppercase' }}>
+                  KITCHEN & VINYL RECORD BAR
+                </span>
+                <div style={{ width: '50%', height: 2, background: 'linear-gradient(90deg, transparent, var(--peach), transparent)', margin: '8px auto 0' }} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
+                {diningTables
+                  .filter(table => !filterCategory || table.capacity.toString() === filterCategory)
+                  .map(table => {
+                    const isSelected = selected.includes(table.id);
+                    const isBooked = table.status === 'booked' || table.status === 'sold' || table.status === 'blocked';
+
+                    let tableBorder = table.capacity === 2 ? '#e07a5f' : table.capacity === 4 ? '#52b788' : '#748cab';
+                    let tableBg = table.capacity === 2 ? '#2b1b16' : table.capacity === 4 ? '#16271c' : '#141d26';
+
+                    if (isSelected) {
+                      tableBg = 'var(--coral)';
+                      tableBorder = 'var(--peach)';
+                    } else if (isBooked) {
+                      tableBg = '#191b1e';
+                      tableBorder = '#282b30';
+                    }
+
+                    return (
+                      <button
+                        key={table.id}
+                        type="button"
+                        onClick={() => toggle(table.id)}
+                        style={{
+                          background: tableBg,
+                          border: `2px solid ${tableBorder}`,
+                          borderRadius: table.capacity === 2 ? '50%' : table.capacity === 6 ? '12px' : '8px',
+                          padding: table.capacity === 2 ? '28px 16px' : '24px 20px',
+                          aspectRatio: table.capacity === 2 ? '1' : table.capacity === 6 ? '1.8' : '1.2',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          cursor: isBooked ? 'pointer' : 'pointer',
+                          opacity: isBooked ? 0.35 : 1,
+                          transform: isSelected ? 'scale(1.05)' : undefined,
+                          boxShadow: isSelected ? '0 0 18px var(--coral)' : undefined,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <Utensils size={18} color={isSelected ? '#fff' : tableBorder} />
+                        <strong style={{ font: '16px var(--mono)', color: isSelected ? '#fff' : 'var(--paper)' }}>
+                          {table.tableLabel}
+                        </strong>
+                        <span style={{ fontSize: 11, font: '10px var(--mono)', color: isSelected ? '#ffd8cc' : '#c0b6af' }}>
+                          Table for {table.capacity} Diners
+                        </span>
+                        <b style={{ fontSize: 12, color: isSelected ? '#fff' : 'var(--paper)', marginTop: 2 }}>
+                          {isBooked ? 'Reserved (Notify)' : `₹${Math.round(table.pricePaise / 100).toLocaleString('en-IN')}`}
+                        </b>
+                      </button>
+                    );
+                  })}
+              </div>
+
+              <div className="seat-legend" style={{ marginTop: 32, justifyContent: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#e07a5f' }} /> Table for 2</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#52b788' }} /> Table for 4</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#748cab' }} /> Table for 6</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="selected-dot" /> Selected ({selected.length} Tables)</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#282b30' }} /> Reserved</span>
+              </div>
+              <p className="seat-helper" style={{ textAlign: 'center', marginTop: 14 }}>
+                <Info size={14} /> You can select multiple tables for larger groups or parties.
+              </p>
+            </div>
           ) : (
+            /* ── THEATRE / CONCERT SEATING MAP ── */
             <>
               <div className="map-toolbar">
                 <div className="map-tabs">
@@ -305,7 +523,6 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                         const isSelected = selected.includes(seat.id);
                         const isBooked = seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold';
 
-                        // Distinct tier colors
                         let seatBg = '#141d26';
                         let seatBorder = '#415a77';
                         let seatText = '#e0e1dd';
@@ -343,7 +560,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                               border: `2px solid ${seatBorder}`,
                               color: seatText,
                               opacity: isBooked ? 0.35 : 1,
-                              cursor: isBooked ? 'pointer' : 'pointer',
+                              cursor: 'pointer',
                               transform: isSelected ? 'scale(1.12)' : undefined,
                               boxShadow: isSelected ? '0 0 14px var(--coral)' : undefined,
                               fontWeight: 600,
@@ -356,22 +573,13 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                     </div>
                   </div>
 
-                  {hoveredSeat && (
-                    <div style={{ marginTop: 24, padding: '10px 20px', background: '#16191d', border: '1px solid #31363e', borderRadius: 4, display: 'inline-block', font: '12px var(--mono)', color: 'var(--paper)' }}>
-                      Row <strong>{hoveredSeat.row}</strong> · Seat <strong>{hoveredSeat.number}</strong> · <span style={{ color: hoveredSeat.category === 'Premium' ? '#e07a5f' : hoveredSeat.category === 'Standard' ? '#52b788' : '#748cab' }}>{hoveredSeat.category || 'Standard'} (₹{Math.round(hoveredSeat.pricePaise / 100).toLocaleString('en-IN')})</span> · <strong>{hoveredSeat.status === 'booked' ? 'SOLD (CLICK FOR WAITLIST NOTIFY)' : hoveredSeat.status.toUpperCase()}</strong>
-                    </div>
-                  )}
-
                   <div className="seat-legend" style={{ marginTop: 20 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#e07a5f', border: '1px solid #e07a5f' }} /> Premium (₹1,499)</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#52b788', border: '1px solid #52b788' }} /> Standard (₹999)</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#748cab', border: '1px solid #748cab' }} /> Economy (₹699)</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#e07a5f' }} /> Premium (₹1,499)</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#52b788' }} /> Standard (₹999)</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#748cab' }} /> Economy (₹699)</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="selected-dot" /> Selected ({selected.length}/8)</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#282b30' }} /> Booked/Sold</span>
                   </div>
-                  <p className="seat-helper">
-                    <Info size={14} /> Select up to 8 seats. Real-time synchronisation prevents double bookings.
-                  </p>
                 </div>
               ) : (
                 <div className="seat-list-view">
@@ -382,10 +590,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                         key={seat.id}
                         onClick={() => toggle(seat.id)}
                         className={`seat-list-item ${selected.includes(seat.id) ? 'selected' : ''}`}
-                        style={{
-                          opacity: isBooked ? 0.45 : 1,
-                          cursor: 'pointer',
-                        }}
+                        style={{ opacity: isBooked ? 0.45 : 1, cursor: 'pointer' }}
                       >
                         <span>Row {seat.row} · Seat {seat.number} ({seat.category || 'Standard'})</span>
                         <b>{isBooked ? 'Sold · Notify me' : `₹${Math.round(seat.pricePaise / 100).toLocaleString('en-IN')}`}</b>
@@ -398,23 +603,36 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
           )}
         </div>
 
+        {/* Order Summary Aside */}
         <aside className="booking-summary">
-          <span className="eyebrow">Your evening</span>
+          <span className="eyebrow">{isDining ? 'Dining Reservation' : 'Your evening'}</span>
           <h2>{event.title}</h2>
           <p className="summary-meta">{event.venue}, {event.city}<br />{event.date} 2026 · {event.time}</p>
           <div className="summary-rule" />
           <div className="summary-seats">
             <div>
-              <span>Selected seats ({selected.length}/8)</span>
+              <span>{isDining ? `Selected Tables (${selected.length})` : `Selected seats (${selected.length}/8)`}</span>
               <b style={{ color: selected.length ? 'var(--peach)' : undefined }}>
-                {selected.length ? selected.map(id => {
-                  const seat = seats.find(v => v.id === id);
-                  return seat ? `${seat.row}${seat.number}` : id;
-                }).join(', ') : 'None yet'}
+                {isDining
+                  ? selected.length
+                    ? selected.map(id => diningTables.find(t => t.id === id)?.tableLabel || id).join(', ')
+                    : 'None selected'
+                  : selected.length
+                  ? selected.map(id => {
+                      const seat = seats.find(v => v.id === id);
+                      return seat ? `${seat.row}${seat.number}` : id;
+                    }).join(', ')
+                  : 'None yet'}
               </b>
             </div>
+            {isDining && (
+              <div>
+                <span>Total Guest Capacity</span>
+                <b style={{ color: 'var(--paper)' }}>{totalDiners} Guests</b>
+              </div>
+            )}
             <div>
-              <span>Ticket total</span>
+              <span>Total amount</span>
               <b>₹{Math.round(total / 100).toLocaleString('en-IN')}</b>
             </div>
           </div>
@@ -423,13 +641,15 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             disabled={!selected.length}
             className={`coral-button summary-cta ${selected.length ? '' : 'disabled'}`}
           >
-            <Check size={16} /> {selected.length ? 'Continue to checkout' : 'Select a seat'} <ChevronRight size={16} />
+            <Check size={16} /> {selected.length ? (isDining ? 'Continue to table checkout' : 'Continue to checkout') : (isDining ? 'Select a table' : 'Select a seat')} <ChevronRight size={16} />
           </button>
-          <p className="summary-foot">Seats are held for 15 minutes once you enter checkout.</p>
+          <p className="summary-foot">
+            {isDining ? 'Tables are held for 15 minutes while you checkout.' : 'Seats are held for 15 minutes once you enter checkout.'}
+          </p>
         </aside>
       </section>
 
-      {/* Notify / Waitlist Modal */}
+      {/* Waitlist Modal */}
       {waitlistOpen && (
         <div
           style={{
@@ -470,7 +690,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                 </div>
                 <h3 style={{ font: '28px var(--serif)', color: 'var(--paper)', margin: '0 0 8px' }}>Notification Active</h3>
                 <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
-                  If a booking is cancelled or a hold expires for <strong>{waitlistCategory}</strong> seats, you will receive an offer in the first batch of 5 users with an exclusive 15-minute priority claim window.
+                  If a reservation is cancelled for <strong>{waitlistCategory}</strong>, you will receive an offer in the first batch of 5 users with an exclusive 15-minute priority booking window.
                 </p>
                 <button
                   className="coral-button"
@@ -484,15 +704,15 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
               <form onSubmit={submitWaitlist}>
                 <span className="eyebrow"><Bell size={13} /> Fairness Waitlist Dispatcher</span>
                 <h3 style={{ font: '30px var(--serif)', color: 'var(--paper)', margin: '10px 0 8px' }}>
-                  Get Notified When Seats Open
+                  Get Notified When {isDining ? 'Tables' : 'Seats'} Open
                 </h3>
                 <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
-                  When someone cancels a booking or a seat hold expires, Encore sends notifications in <strong>priority batches of 5 users</strong> with a <strong>15-minute exclusive booking window</strong>.
+                  When someone cancels or a hold expires, Encore sends notifications in <strong>priority batches of 5 users</strong> with a <strong>15-minute exclusive booking window</strong>.
                 </p>
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', color: '#d0beb5', font: '10px var(--mono)', textTransform: 'uppercase', marginBottom: 6 }}>
-                    Seat Tier Category
+                    Reservation Tier
                   </label>
                   <select
                     value={waitlistCategory}
@@ -506,9 +726,19 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                       borderRadius: 4,
                     }}
                   >
-                    <option value="Premium">Premium Tier (₹1,499)</option>
-                    <option value="Standard">Standard Tier (₹999)</option>
-                    <option value="Economy">Economy Tier (₹699)</option>
+                    {isDining ? (
+                      <>
+                        <option value="Table for 2">Table for 2 (₹1,800)</option>
+                        <option value="Table for 4">Table for 4 (₹3,600)</option>
+                        <option value="Table for 6">Table for 6 (₹5,400)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Premium">Premium Tier (₹1,499)</option>
+                        <option value="Standard">Standard Tier (₹999)</option>
+                        <option value="Economy">Economy Tier (₹699)</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
