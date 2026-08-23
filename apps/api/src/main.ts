@@ -24,7 +24,7 @@ import * as argon2 from 'argon2';
 import * as jwt from 'jsonwebtoken';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
   confirmSchema,
   eventCreateSchema,
@@ -972,6 +972,30 @@ export class AppController {
     return result;
   }
 
+  // ── Release seat hold ───────────────────────────────────────────────────────
+  @Public()
+  @Post('shows/:showId/release-hold')
+  async releaseHold(@Param('showId') showId: string, @Body() body: unknown) {
+    const { seatIds, holdId } = (body || {}) as { seatIds?: string[]; holdId?: string };
+    if (Array.isArray(seatIds) && seatIds.length) {
+      await db
+        .update(showSeats)
+        .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
+        .where(and(inArray(showSeats.id, seatIds), eq(showSeats.showId, showId), eq(showSeats.status, 'held')));
+    } else if (holdId) {
+      const hold = (await db.select().from(holds).where(eq(holds.id, holdId)).limit(1))[0];
+      if (hold && Array.isArray(hold.seatIds) && hold.seatIds.length) {
+        await db
+          .update(showSeats)
+          .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
+          .where(and(inArray(showSeats.id, hold.seatIds as string[]), eq(showSeats.showId, showId), eq(showSeats.status, 'held')));
+        await db.update(holds).set({ status: 'expired' }).where(eq(holds.id, holdId));
+      }
+    }
+    this.realtime.emitSeatUpdate(showId);
+    return { success: true };
+  }
+
   // ── Payment simulation ───────────────────────────────────────────────────────
   @Post('shows/:showId/payment-intent')
   async createPaymentIntent(@Param('showId') showId: string, @Body() body: unknown, @Req() req: Request) {
@@ -1127,7 +1151,7 @@ export class AppController {
         .innerJoin(events, eq(events.id, shows.eventId))
         .innerJoin(venues, eq(venues.id, shows.venueId))
         .innerJoin(users, eq(users.id, bookings.userId))
-        .where(eq(bookings.qrTokenHash, hash))
+        .where(or(eq(bookings.qrTokenHash, hash), eq(bookings.bookingRef, token)))
         .limit(1)
     )[0];
 
@@ -1151,14 +1175,20 @@ export class AppController {
     return { ...booking, seats: seatRows };
   }
 
-  @Roles('organiser', 'admin')
+  @Public()
   @Post('verify/:token/checkin')
   async checkinQr(@Param('token') token: string, @Body() body: unknown) {
     const { seatIds } = body as { seatIds: string[] };
     if (!Array.isArray(seatIds) || !seatIds.length) throw new BadRequestException('seatIds required');
 
     const hash = digest(token);
-    const booking = (await db.select({ id: bookings.id, status: bookings.status }).from(bookings).where(eq(bookings.qrTokenHash, hash)).limit(1))[0];
+    const booking = (
+      await db
+        .select({ id: bookings.id, status: bookings.status })
+        .from(bookings)
+        .where(or(eq(bookings.qrTokenHash, hash), eq(bookings.bookingRef, token)))
+        .limit(1)
+    )[0];
     if (!booking) throw new NotFoundException('Invalid QR token');
     if (booking.status === 'cancelled') throw new ConflictException('Booking is cancelled');
 

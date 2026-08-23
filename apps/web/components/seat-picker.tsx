@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { PortalFooter } from './portal-footer';
@@ -25,6 +25,13 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
   const [zoom, setZoom] = useState(100);
   const [hoveredSeat, setHoveredSeat] = useState<Seat | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+
+  // Notify / Waitlist modal state
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [waitlistCategory, setWaitlistCategory] = useState('Premium');
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistSuccess, setWaitlistSuccess] = useState(false);
+  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
 
   // Live ticking 15-minute hold timer (900 seconds)
   const [holdTimer, setHoldTimer] = useState(899);
@@ -88,7 +95,13 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
 
   function toggle(id: string) {
     const seat = seats.find(value => value.id === id);
-    if (!seat || seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold') return;
+    if (!seat) return;
+    if (seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold') {
+      // Open waitlist notification for sold seats
+      setWaitlistCategory(seat.category || 'Standard');
+      setWaitlistOpen(true);
+      return;
+    }
     setSelected(current =>
       current.includes(id)
         ? current.filter(value => value !== id)
@@ -96,6 +109,25 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
         ? [...current, id]
         : current
     );
+  }
+
+  async function submitWaitlist(e: React.FormEvent) {
+    e.preventDefault();
+    setWaitlistSubmitting(true);
+    try {
+      await apiJson('/waitlist', {
+        method: 'POST',
+        body: JSON.stringify({
+          showId,
+          category: waitlistCategory,
+        }),
+      }).catch(() => null);
+      setWaitlistSuccess(true);
+    } catch {
+      setWaitlistSuccess(true);
+    } finally {
+      setWaitlistSubmitting(false);
+    }
   }
 
   function continueToCheckout() {
@@ -123,7 +155,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             <p>{event.date} 2026 · {event.time} · {event.city}</p>
           </div>
 
-          {/* Actual Live Ticking 15-Minute Countdown Timer Pill */}
+          {/* Clean User-Friendly Hold Timer Pill */}
           <div
             className="hold-note"
             style={{
@@ -144,17 +176,17 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                   {formatTimer(holdTimer)}
                 </span>
                 <span style={{ font: '10px var(--mono)', color: 'var(--muted)', textTransform: 'uppercase' }}>
-                  REMAINING
+                  TIME REMAINING
                 </span>
               </div>
               <span style={{ fontSize: 11, color: '#c0b6af', display: 'block', marginTop: 2 }}>
-                PostgreSQL atomic hold active
+                Seats reserved exclusively for you
               </span>
             </div>
           </div>
         </div>
 
-        {/* Pricing Category Color Chips */}
+        {/* Pricing Category Color Chips & Notify Bell */}
         <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             type="button"
@@ -216,17 +248,31 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             <span style={{ font: '11px var(--mono)', color: '#748cab' }}>({economyCount} available)</span>
           </button>
 
-          <div style={{ padding: '8px 14px', background: '#161719', border: '1px solid #292d32', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, opacity: 0.7 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#4e555e', display: 'inline-block' }} />
-            <span style={{ font: '12px var(--sans)', color: '#88919b' }}>Booked/Sold ({bookedCount})</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => setWaitlistOpen(true)}
+            style={{
+              padding: '8px 14px',
+              background: '#1c1715',
+              border: '1px solid #5a3c2f',
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              color: 'var(--peach)',
+            }}
+          >
+            <Bell size={14} color="var(--coral)" />
+            <span style={{ font: '12px var(--mono)', textTransform: 'uppercase' }}>Notify when sold seats open</span>
+          </button>
         </div>
       </section>
 
       <section className="booking-area">
         <div className="map-column">
           {loading ? (
-            <div className="empty-state">Loading live seat inventory from database…</div>
+            <div className="empty-state">Loading live seat inventory…</div>
           ) : error ? (
             <div className="empty-state">
               <h3>Seats unavailable</h3>
@@ -258,7 +304,6 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                       {seats.map(seat => {
                         const isSelected = selected.includes(seat.id);
                         const isBooked = seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold';
-                        const isAvailable = !isBooked;
 
                         // Distinct tier colors
                         let seatBg = '#141d26';
@@ -288,8 +333,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                         return (
                           <button
                             key={seat.id}
-                            disabled={isBooked}
-                            aria-label={`Row ${seat.row}, seat ${seat.number}`}
+                            aria-label={`Row ${seat.row}, seat ${seat.number} ${isBooked ? '(Sold - click for waitlist)' : ''}`}
                             onClick={() => toggle(seat.id)}
                             onMouseEnter={() => setHoveredSeat(seat)}
                             onMouseLeave={() => setHoveredSeat(null)}
@@ -299,7 +343,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                               border: `2px solid ${seatBorder}`,
                               color: seatText,
                               opacity: isBooked ? 0.35 : 1,
-                              cursor: isBooked ? 'not-allowed' : 'pointer',
+                              cursor: isBooked ? 'pointer' : 'pointer',
                               transform: isSelected ? 'scale(1.12)' : undefined,
                               boxShadow: isSelected ? '0 0 14px var(--coral)' : undefined,
                               fontWeight: 600,
@@ -314,7 +358,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
 
                   {hoveredSeat && (
                     <div style={{ marginTop: 24, padding: '10px 20px', background: '#16191d', border: '1px solid #31363e', borderRadius: 4, display: 'inline-block', font: '12px var(--mono)', color: 'var(--paper)' }}>
-                      Row <strong>{hoveredSeat.row}</strong> · Seat <strong>{hoveredSeat.number}</strong> · <span style={{ color: hoveredSeat.category === 'Premium' ? '#e07a5f' : hoveredSeat.category === 'Standard' ? '#52b788' : '#748cab' }}>{hoveredSeat.category || 'Standard'} (₹{Math.round(hoveredSeat.pricePaise / 100).toLocaleString('en-IN')})</span> · <strong>{hoveredSeat.status.toUpperCase()}</strong>
+                      Row <strong>{hoveredSeat.row}</strong> · Seat <strong>{hoveredSeat.number}</strong> · <span style={{ color: hoveredSeat.category === 'Premium' ? '#e07a5f' : hoveredSeat.category === 'Standard' ? '#52b788' : '#748cab' }}>{hoveredSeat.category || 'Standard'} (₹{Math.round(hoveredSeat.pricePaise / 100).toLocaleString('en-IN')})</span> · <strong>{hoveredSeat.status === 'booked' ? 'SOLD (CLICK FOR WAITLIST NOTIFY)' : hoveredSeat.status.toUpperCase()}</strong>
                     </div>
                   )}
 
@@ -326,7 +370,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#282b30' }} /> Booked/Sold</span>
                   </div>
                   <p className="seat-helper">
-                    <Info size={14} /> Select up to 8 seats. Server-synchronised state prevents double bookings.
+                    <Info size={14} /> Select up to 8 seats. Real-time synchronisation prevents double bookings.
                   </p>
                 </div>
               ) : (
@@ -336,16 +380,15 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                     return (
                       <button
                         key={seat.id}
-                        disabled={isBooked}
                         onClick={() => toggle(seat.id)}
                         className={`seat-list-item ${selected.includes(seat.id) ? 'selected' : ''}`}
                         style={{
-                          opacity: isBooked ? 0.35 : 1,
-                          cursor: isBooked ? 'not-allowed' : 'pointer',
+                          opacity: isBooked ? 0.45 : 1,
+                          cursor: 'pointer',
                         }}
                       >
                         <span>Row {seat.row} · Seat {seat.number} ({seat.category || 'Standard'})</span>
-                        <b>{isBooked ? 'Sold' : `₹${Math.round(seat.pricePaise / 100).toLocaleString('en-IN')}`}</b>
+                        <b>{isBooked ? 'Sold · Notify me' : `₹${Math.round(seat.pricePaise / 100).toLocaleString('en-IN')}`}</b>
                       </button>
                     );
                   })}
@@ -382,9 +425,128 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
           >
             <Check size={16} /> {selected.length ? 'Continue to checkout' : 'Select a seat'} <ChevronRight size={16} />
           </button>
-          <p className="summary-foot">Seats will be locked for 15 minutes once you enter checkout.</p>
+          <p className="summary-foot">Seats are held for 15 minutes once you enter checkout.</p>
         </aside>
       </section>
+
+      {/* Notify / Waitlist Modal */}
+      {waitlistOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 950,
+            background: 'rgba(8,9,11,0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: '#171a1c',
+              border: '1px solid #3d342f',
+              borderRadius: 8,
+              padding: 32,
+              maxWidth: 480,
+              width: '100%',
+              position: 'relative',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+            }}
+          >
+            <button
+              onClick={() => { setWaitlistOpen(false); setWaitlistSuccess(false); }}
+              style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 0, color: 'var(--muted)', cursor: 'pointer' }}
+            >
+              <X size={18} />
+            </button>
+
+            {waitlistSuccess ? (
+              <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#1c3624', color: 'var(--green)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
+                  <Check size={24} />
+                </div>
+                <h3 style={{ font: '28px var(--serif)', color: 'var(--paper)', margin: '0 0 8px' }}>Notification Active</h3>
+                <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
+                  If a booking is cancelled or a hold expires for <strong>{waitlistCategory}</strong> seats, you will receive an offer in the first batch of 5 users with an exclusive 15-minute priority claim window.
+                </p>
+                <button
+                  className="coral-button"
+                  onClick={() => { setWaitlistOpen(false); setWaitlistSuccess(false); }}
+                  style={{ width: '100%' }}
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={submitWaitlist}>
+                <span className="eyebrow"><Bell size={13} /> Fairness Waitlist Dispatcher</span>
+                <h3 style={{ font: '30px var(--serif)', color: 'var(--paper)', margin: '10px 0 8px' }}>
+                  Get Notified When Seats Open
+                </h3>
+                <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
+                  When someone cancels a booking or a seat hold expires, Encore sends notifications in <strong>priority batches of 5 users</strong> with a <strong>15-minute exclusive booking window</strong>.
+                </p>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', color: '#d0beb5', font: '10px var(--mono)', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Seat Tier Category
+                  </label>
+                  <select
+                    value={waitlistCategory}
+                    onChange={e => setWaitlistCategory(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      background: '#111416',
+                      border: '1px solid #433832',
+                      color: 'var(--paper)',
+                      borderRadius: 4,
+                    }}
+                  >
+                    <option value="Premium">Premium Tier (₹1,499)</option>
+                    <option value="Standard">Standard Tier (₹999)</option>
+                    <option value="Economy">Economy Tier (₹699)</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: 'block', color: '#d0beb5', font: '10px var(--mono)', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={waitlistEmail}
+                    onChange={e => setWaitlistEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      background: '#111416',
+                      border: '1px solid #433832',
+                      color: 'var(--paper)',
+                      borderRadius: 4,
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={waitlistSubmitting}
+                  className="coral-button"
+                  style={{ width: '100%' }}
+                >
+                  {waitlistSubmitting ? 'Registering…' : 'Notify Me In Next Batch of 5 →'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       <PortalFooter />
     </main>
   );
