@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, CalendarDays, MapPin, Search, SlidersHorizontal, X, Sparkles } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, MapPin, Search, SlidersHorizontal, X, Sparkles, Globe } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PortalFooter } from '@/components/portal-footer';
@@ -17,9 +17,10 @@ function EventsContent() {
   const rawKind = params.get('kind');
   const selected = rawKind ? rawKind.charAt(0).toUpperCase() + rawKind.slice(1) : 'For you';
   const queryCity = params.get('city');
+  const querySearch = params.get('q') || params.get('search') || '';
 
   const [city, setCity] = useState(queryCity || 'Mumbai');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(querySearch);
   const [catalog, setCatalog] = useState<EncoreEvent[]>(encoreEvents);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -34,17 +35,21 @@ function EventsContent() {
     }
   }, [queryCity]);
 
-  const visible = useMemo(() => {
+  useEffect(() => {
+    if (querySearch) {
+      setSearch(querySearch);
+    }
+  }, [querySearch]);
+
+  const { visible, otherCityMatches } = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return catalog.filter(event => {
-      // City matching
+
+    const inCity = catalog.filter(event => {
       const cityMatch = !city || event.city.toLowerCase() === city.toLowerCase();
-      // Category matching
       const kindMatch = selected === 'For you' || event.kind.toLowerCase() === selected.toLowerCase();
-      // Keyword search
       const searchMatch =
-        !term || `${event.title} ${event.venue} ${event.kind} ${event.city} ${event.description}`.toLowerCase().includes(term);
-      // Date filter
+        !term ||
+        `${event.title} ${event.venue} ${event.kind} ${event.city} ${event.description}`.toLowerCase().includes(term);
       const dateMatch =
         dateFilter === 'Any date' ||
         (dateFilter === 'Today'
@@ -55,6 +60,17 @@ function EventsContent() {
 
       return cityMatch && kindMatch && searchMatch && dateMatch;
     });
+
+    const otherCities = term
+      ? catalog.filter(event => {
+          const notCurrentCity = city && event.city.toLowerCase() !== city.toLowerCase();
+          const searchMatch =
+            `${event.title} ${event.venue} ${event.kind} ${event.city} ${event.description}`.toLowerCase().includes(term);
+          return notCurrentCity && searchMatch;
+        })
+      : [];
+
+    return { visible: inCity, otherCityMatches: otherCities };
   }, [catalog, city, dateFilter, search, selected]);
 
   useEffect(() => {
@@ -94,7 +110,6 @@ function EventsContent() {
           } as EncoreEvent;
         });
 
-        // Merge API events without overwriting prototype default multi-city events
         const combined = [...encoreEvents];
         for (const apiEvent of apiList) {
           const idx = combined.findIndex(e => e.slug === apiEvent.slug || e.showId === apiEvent.showId);
@@ -107,7 +122,7 @@ function EventsContent() {
         setCatalog(combined);
       })
       .catch(() => {
-        /* Keep all pre-configured multi-city prototype events */
+        /* Keep pre-configured prototype events */
       });
   }, []);
 
@@ -140,9 +155,18 @@ function EventsContent() {
             aria-label="Search events"
             value={search}
             onChange={event => setSearch(event.target.value)}
-            placeholder={`Search events, movies, comedy in ${city}…`}
+            placeholder={`Search events, comedy, cinema in ${city}…`}
           />
-          <span>⌘ K</span>
+          {search ? (
+            <button
+              onClick={() => setSearch('')}
+              style={{ background: 'transparent', border: 0, color: 'var(--peach)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              <X size={16} />
+            </button>
+          ) : (
+            <span>⌘ K</span>
+          )}
         </div>
       </section>
 
@@ -236,7 +260,7 @@ function EventsContent() {
           <div className="empty-state">
             <span className="eyebrow">No exact matches in {city}</span>
             <h3>Try a different mood.</h3>
-            <p>Clear the search or choose another category and we’ll find a better fit in {city}.</p>
+            <p>Clear your search or explore other dates and categories in {city}.</p>
             <button
               className="ghost-button"
               onClick={() => {
@@ -246,6 +270,30 @@ function EventsContent() {
             >
               Reset filters
             </button>
+          </div>
+        )}
+
+        {/* Smart Cross-City Search Suggestions */}
+        {otherCityMatches.length > 0 && (
+          <div style={{ marginTop: 60, padding: 28, background: '#171a1c', border: '1px solid #3d342f', borderRadius: 6 }}>
+            <span className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--coral)' }}>
+              <Globe size={14} /> Matching Events in Other Cities
+            </span>
+            <h3 style={{ font: '26px var(--serif)', color: 'var(--paper)', margin: '8px 0 16px' }}>
+              Also happening for "{search}":
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+              {otherCityMatches.map(ev => (
+                <div key={ev.slug} style={{ padding: 16, background: '#121416', border: '1px solid #282b30', borderRadius: 4 }}>
+                  <span style={{ font: '10px var(--mono)', color: 'var(--peach)', textTransform: 'uppercase' }}>{ev.city} · {ev.kind}</span>
+                  <h4 style={{ margin: '6px 0', font: '18px var(--serif)', color: 'var(--paper)' }}>{ev.title}</h4>
+                  <p style={{ margin: '0 0 12px', color: 'var(--muted)', fontSize: 12 }}>{ev.venue} · {ev.date}</p>
+                  <Link href={`/events/${ev.slug}`} className="coral-button" style={{ padding: '8px 14px', fontSize: 10 }}>
+                    View event in {ev.city} <ArrowUpRight size={14} />
+                  </Link>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>
