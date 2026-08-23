@@ -1,18 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { X, KeyRound, ShieldAlert, Sparkles, Bell, Clock, QrCode } from 'lucide-react';
+import { X, KeyRound, Sparkles, Bell, Clock, QrCode, Utensils, ShieldCheck, Check } from 'lucide-react';
 
-const STORAGE_KEY = 'encore_welcome_dismissed';
+const STORAGE_KEY = 'encore_author_note_v3';
 
 export function WelcomeModal() {
   const [open, setOpen] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setOpen(true);
+      if (!window.sessionStorage.getItem(STORAGE_KEY) && !window.localStorage.getItem(STORAGE_KEY)) {
+        const timer = setTimeout(() => setOpen(true), 600);
+        return () => clearTimeout(timer);
       }
     } catch {
       setOpen(true);
@@ -23,155 +24,223 @@ export function WelcomeModal() {
     return () => window.removeEventListener('open-welcome-modal', handleOpen);
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        dismiss();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
+
   function dismiss() {
     try {
-      localStorage.setItem(STORAGE_KEY, '1');
+      window.sessionStorage.setItem(STORAGE_KEY, '1');
+      window.localStorage.setItem(STORAGE_KEY, '1');
     } catch {
       // ignore
     }
     setOpen(false);
   }
 
+  function copyText(text: string, label: string) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedKey(label);
+      setTimeout(() => setCopiedKey(null), 2000);
+    }
+  }
+
+  if (!open) return null;
+
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            key="backdrop"
-            className="wm-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            onClick={dismiss}
-          />
+    <div
+      className="wm-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px 16px',
+      }}
+    >
+      {/* Backdrop */}
+      <div
+        className="wm-backdrop"
+        onClick={dismiss}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(8, 10, 12, 0.82)',
+          backdropFilter: 'blur(10px)',
+          animation: 'fadeIn 0.2s ease',
+        }}
+      />
 
-          {/* Panel */}
-          <motion.div
-            key="panel"
-            className="wm-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Welcome to Encore"
-            initial={{ opacity: 0, scale: 0.95, y: '-48%', x: '-50%' }}
-            animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }}
-            exit={{ opacity: 0, scale: 0.95, y: '-48%', x: '-50%' }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {/* Close */}
-            <button className="wm-close" onClick={dismiss} aria-label="Close author note">
-              <X size={16} />
-            </button>
+      {/* Modal Dialog */}
+      <div
+        className="wm-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Welcome to Encore"
+        style={{
+          position: 'relative',
+          zIndex: 10000,
+          background: '#141618',
+          border: '1px solid #3d342f',
+          borderRadius: 8,
+          maxWidth: 680,
+          width: '100%',
+          maxHeight: 'min(90vh, 90dvh)',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 30px 80px rgba(0, 0, 0, 0.8)',
+          animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Close Button */}
+        <button
+          className="wm-close"
+          onClick={dismiss}
+          aria-label="Close author note"
+          style={{
+            position: 'absolute',
+            top: 18,
+            right: 18,
+            width: 32,
+            height: 32,
+            background: '#231c18',
+            border: '1px solid #4a362c',
+            borderRadius: '50%',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'var(--peach)',
+            cursor: 'pointer',
+            zIndex: 10,
+          }}
+        >
+          <X size={15} />
+        </button>
 
-            <div className="wm-scroll">
-              {/* Header */}
-              <div className="wm-header">
-                <span className="eyebrow"><Sparkles size={13} /> Author note & platform architecture</span>
-                <h1 className="wm-title">
-                  Welcome to <em>Encore</em>
-                </h1>
-                <p className="wm-lede">
-                  Ticket booking, but with fewer&nbsp;
-                  <span className="wm-highlight">"someone else took your seat"</span>
-                  &nbsp;heartbreaks.
-                </p>
-                <p className="wm-lede" style={{ marginTop: 8 }}>
-                  Encore is an industry-grade real-time ticketing platform built around one foundational principle:{' '}
-                  <strong className="wm-strong">
-                    Every seat should have a single, verifiable source of truth.
-                  </strong>
-                </p>
+        <div className="wm-scroll" style={{ padding: '32px 32px 20px', overflowY: 'auto' }}>
+          {/* Header */}
+          <div className="wm-header" style={{ marginBottom: 20 }}>
+            <span className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--peach)', fontSize: 11 }}>
+              <Sparkles size={13} color="var(--coral)" /> Author note & platform architecture
+            </span>
+            <h1 className="wm-title" style={{ font: 'clamp(36px, 6vw, 56px) var(--serif)', color: 'var(--paper)', margin: '10px 0 8px', lineHeight: 1.05 }}>
+              Welcome to <em>Encore</em>
+            </h1>
+            <p className="wm-lede" style={{ color: '#c8bdb6', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+              High-concurrency ticket booking with zero&nbsp;
+              <span className="wm-highlight" style={{ color: 'var(--coral)', fontWeight: 600 }}>
+                "someone else took your seat"
+              </span>
+              &nbsp;heartbreaks.
+            </p>
+          </div>
+
+          {/* 1-Click Credentials Box */}
+          <section style={{ background: '#1c1715', padding: '16px 18px', border: '1px solid #4a362c', borderRadius: 6, marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--coral)', font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <KeyRound size={14} /> 1-Click Credentials for Reviewers
+              </h3>
+              {copiedKey && (
+                <span style={{ font: '10px var(--mono)', color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Check size={12} /> Copied {copiedKey}!
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div
+                onClick={() => copyText('organiser@encore.local', 'Organiser email')}
+                style={{ background: '#251e1a', padding: 10, borderRadius: 4, border: '1px solid #3c2f27', cursor: 'pointer' }}
+              >
+                <span style={{ display: 'block', font: '10px var(--mono)', color: 'var(--peach)', textTransform: 'uppercase' }}>Organiser</span>
+                <span style={{ fontSize: 12, color: 'var(--paper)', display: 'block', marginTop: 2 }}>organiser@encore.local</span>
+                <span style={{ fontSize: 11, color: '#9a8f88' }}>Pass: SeedPassword123!</span>
               </div>
+              <div
+                onClick={() => copyText('admin@encore.local', 'Admin email')}
+                style={{ background: '#251e1a', padding: 10, borderRadius: 4, border: '1px solid #3c2f27', cursor: 'pointer' }}
+              >
+                <span style={{ display: 'block', font: '10px var(--mono)', color: 'var(--green)', textTransform: 'uppercase' }}>Admin</span>
+                <span style={{ fontSize: 12, color: 'var(--paper)', display: 'block', marginTop: 2 }}>admin@encore.local</span>
+                <span style={{ fontSize: 11, color: '#9a8f88' }}>Pass: SeedPassword123!</span>
+              </div>
+            </div>
+          </section>
 
-              <div className="wm-divider" />
+          {/* Key Systems */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <h2 style={{ font: '20px var(--serif)', color: 'var(--paper)', margin: '0 0 4px' }}>
+              Engineered Product Architecture
+            </h2>
 
-              {/* Demo Credentials Box */}
-              <section className="wm-section" style={{ background: '#1c1715', padding: 18, border: '1px solid #4a362c', borderRadius: 4, marginBottom: 20 }}>
-                <h3 className="wm-h3" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--coral)' }}>
-                  <KeyRound size={15} /> 1-Click Credentials for Reviewers
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 12 }}>
-                  <div className="wm-creds" style={{ margin: 0 }}>
-                    <span className="wm-cred-label">Organizer demo</span>
-                    <span>Email: <strong style={{ color: 'var(--paper)' }}>organiser@encore.local</strong></span>
-                    <span>Password: <strong style={{ color: 'var(--peach)' }}>SeedPassword123!</strong></span>
-                  </div>
-                  <div className="wm-creds" style={{ margin: 0 }}>
-                    <span className="wm-cred-label">Admin demo</span>
-                    <span>Email: <strong style={{ color: 'var(--paper)' }}>admin@encore.local</strong></span>
-                    <span>Password: <strong style={{ color: 'var(--peach)' }}>SeedPassword123!</strong></span>
-                  </div>
-                </div>
-              </section>
-
-              {/* Key Features & Architecture */}
-              <section className="wm-section">
-                <h2 className="wm-h2">Key Systems & Architecture</h2>
-
-                <h3 className="wm-h3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Clock size={14} color="var(--peach)" /> 15-Minute Dynamic Seat Holds
-                </h3>
-                <p className="wm-p">
-                  When a customer enters checkout, seats are reserved exclusively for <strong>15 minutes</strong> with server-side row locks. If payment is not completed or the user cancels, background workers immediately release the seats back to available for everyone.
-                </p>
-
-                <h3 className="wm-h3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Bell size={14} color="var(--peach)" /> Batched Waitlist Fairness Dispatcher
-                </h3>
-                <p className="wm-p">
-                  For sold-out shows or popular tiers, users can join the waitlist with one click. When someone cancels a booking or a hold expires, Encore sends notifications in <strong>priority batches of 5 users</strong>. Each batch receives an exclusive <strong>15-minute claim window</strong> before automatically cascading to the next 5 users.
-                </p>
-
-                <h3 className="wm-h3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <QrCode size={14} color="var(--peach)" /> Cryptographic QR Tickets & Gate Check-in
-                </h3>
-                <p className="wm-p">
-                  Every confirmed booking generates a unique, standalone QR ticket voucher with print-ready receipt formatting. Organizers and venue staff can scan the QR code to verify validity and mark attendees present seat-by-seat with real-time audit logs.
-                </p>
-
-                <h3 className="wm-h3">Organizer & Admin Governance</h3>
-                <ul className="wm-ul">
-                  <li><strong>Admin Portal:</strong> Provision new organizers, dynamically modify user roles, inspect jobs, and simulate high-concurrency seat contention.</li>
-                  <li><strong>Organizer Portal:</strong> Publish multi-city events, manage interactive seat layouts, monitor real-time sales, and scan attendee tickets.</li>
-                </ul>
-              </section>
-
-              <div className="wm-divider" />
-
-              {/* Stack */}
-              <section className="wm-section">
-                <h2 className="wm-h2">Built with</h2>
-                <div className="wm-stack">
-                  {[
-                    'Next.js 16','NestJS','PostgreSQL','Redis','BullMQ',
-                    'Socket.IO','Argon2 Password Hashing','Bearer & Cookie Auth',
-                    'RBAC Roles','Batched 5-User Waitlist','QR Verification','Seat-by-Seat Check-in',
-                  ].map((t) => (
-                    <span key={t} className="wm-tag">{t}</span>
-                  ))}
-                </div>
-              </section>
-
-              <div className="wm-divider" />
-
-              {/* Sign off */}
-              <footer className="wm-footer">
-                <p className="wm-p"><strong>Signing off,</strong></p>
-                <p className="wm-signoff">Ajitesh Sharma</p>
-                <p className="wm-from">Coding from VIT Vellore</p>
-              </footer>
+            <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
+              <strong style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--peach)', fontSize: 13, marginBottom: 4 }}>
+                <Clock size={15} color="var(--coral)" /> 15-Minute Real-Time Seat Holds
+              </strong>
+              <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+                Upon entering checkout, seats are reserved exclusively for 15 minutes with server-side row locks in PostgreSQL. If the transaction is cancelled or times out, background BullMQ workers release the seats instantly back to the floor.
+              </p>
             </div>
 
-            {/* Sticky dismiss */}
-            <div className="wm-actions">
-              <button className="coral-button wm-dismiss" onClick={dismiss}>
-                Got it — let me in&nbsp;→
-              </button>
+            <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
+              <strong style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--peach)', fontSize: 13, marginBottom: 4 }}>
+                <Bell size={15} color="var(--coral)" /> Batched 5-User Waitlist Fairness
+              </strong>
+              <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+                When sold-out seats become available due to cancellations, Encore dispatches offers in <strong>priority batches of 5 users</strong> with a <strong>15-minute exclusive booking window</strong> before cascading to the next 5 users in queue.
+              </p>
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+
+            <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
+              <strong style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--peach)', fontSize: 13, marginBottom: 4 }}>
+                <Utensils size={15} color="var(--coral)" /> Event-Adapted Dining Floorplans
+              </strong>
+              <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+                Dining events replace concert stages with restaurant table reservations (Table for 2, 4, and 6) with multi-table party selection and guest capacity tracking.
+              </p>
+            </div>
+
+            <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
+              <strong style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--peach)', fontSize: 13, marginBottom: 4 }}>
+                <QrCode size={15} color="var(--coral)" /> Gate QR Verification & Check-In
+              </strong>
+              <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+                Clean admission passes generate standalone QR codes. Venue staff and organisers can scan tickets and mark attendees present seat-by-seat with real-time audit logs.
+              </p>
+            </div>
+          </section>
+
+          {/* Signoff */}
+          <footer style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #2c2522', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <span style={{ color: 'var(--muted)', font: '11px var(--mono)' }}>Designed & built by</span>
+              <strong style={{ display: 'block', color: 'var(--paper)', font: '18px var(--serif)' }}>Ajitesh Sharma</strong>
+            </div>
+            <span style={{ font: '11px var(--mono)', color: 'var(--peach)' }}>VIT Vellore · Full-Stack Ticketing</span>
+          </footer>
+        </div>
+
+        {/* Action Button */}
+        <div style={{ padding: '14px 32px 20px', background: '#121416', borderTop: '1px solid #282b30' }}>
+          <button
+            type="button"
+            onClick={dismiss}
+            className="coral-button"
+            style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: 12 }}
+          >
+            Enter Encore & Explore Events →
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
