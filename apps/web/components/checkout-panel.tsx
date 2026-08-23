@@ -182,17 +182,25 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
     try {
       let activeUser: { id: string; name: string; email: string };
       if (authMode === 'signin') {
-        const res = await apiJson<{ session?: { id: string; name: string; email: string }; user?: { id: string; name: string; email: string } }>('/auth/login', {
+        const res = await apiJson<{ session?: { id: string; name: string; email: string }; user?: { id: string; name: string; email: string }; accessToken?: string }>('/auth/login', {
           method: 'POST',
           body: JSON.stringify({ email: authEmail, password: authPassword }),
         });
         activeUser = res.session || res.user || { id: 'usr-1', name: authEmail.split('@')[0], email: authEmail };
+        // Store token so subsequent API calls are authenticated
+        if (res.accessToken) {
+          window.localStorage.setItem('encore_token', res.accessToken);
+        }
       } else {
-        const res = await apiJson<{ session?: { id: string; name: string; email: string }; user?: { id: string; name: string; email: string } }>('/auth/register', {
+        const res = await apiJson<{ session?: { id: string; name: string; email: string }; user?: { id: string; name: string; email: string }; accessToken?: string }>('/auth/register', {
           method: 'POST',
           body: JSON.stringify({ name: authName || authEmail.split('@')[0], email: authEmail, password: authPassword }),
         });
         activeUser = res.session || res.user || { id: 'usr-1', name: authName || authEmail.split('@')[0], email: authEmail };
+        // Store token so subsequent API calls are authenticated
+        if (res.accessToken) {
+          window.localStorage.setItem('encore_token', res.accessToken);
+        }
       }
       setUser(activeUser);
       try {

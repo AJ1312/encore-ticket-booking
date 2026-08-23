@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, CalendarDays, MapPin, Ticket, ShieldCheck, Printer, ArrowLeft } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, MapPin, Ticket, LogIn } from 'lucide-react';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { apiJson } from '@/lib/api';
@@ -15,50 +15,32 @@ type Booking = {
   venue?: string;
   city?: string;
   startsAt?: string;
+  showId?: string;
   seatsCount?: number;
 };
 
 export default function TicketsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
     apiJson<{ bookings: Booking[] }>('/bookings')
       .then(result => {
-        if (isMounted && result.bookings?.length) {
-          setBookings(result.bookings);
-        } else if (isMounted) {
-          // Default confirmed ticket for reviewer experience
-          setBookings([
-            {
-              bookingRef: 'ENC-55F9CA50',
-              totalPaise: 299800,
-              status: 'confirmed',
-              eventTitle: 'The Night We Remember',
-              venue: 'Riverside Grounds',
-              city: 'Mumbai',
-              startsAt: '2026-08-28T14:30:00.000Z',
-              seatsCount: 2,
-            },
-          ]);
+        if (isMounted) {
+          setBookings(result.bookings || []);
+          setAuthError(false);
         }
       })
-      .catch(() => {
-        if (isMounted) {
-          setBookings([
-            {
-              bookingRef: 'ENC-55F9CA50',
-              totalPaise: 299800,
-              status: 'confirmed',
-              eventTitle: 'The Night We Remember',
-              venue: 'Riverside Grounds',
-              city: 'Mumbai',
-              startsAt: '2026-08-28T14:30:00.000Z',
-              seatsCount: 2,
-            },
-          ]);
+      .catch(err => {
+        if (!isMounted) return;
+        const msg = String(err?.message || '');
+        // 401 means not logged in — show sign-in prompt instead of fake data
+        if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
+          setAuthError(true);
         }
+        setBookings([]);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -85,6 +67,15 @@ export default function TicketsPage() {
       <section className="ticket-list" style={{ maxWidth: 1000, margin: '0 auto', padding: '0 6vw 60px' }}>
         {loading ? (
           <div className="empty-state">Loading your ticket passes…</div>
+        ) : authError ? (
+          <div className="empty-state">
+            <LogIn size={32} style={{ margin: '0 auto 12px', color: 'var(--muted)' }} />
+            <h3>Sign in to view your tickets</h3>
+            <p>Your bookings are tied to your account. Sign in to see all your confirmed passes.</p>
+            <Link href="/login?next=/bookings" className="coral-button" style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              Sign In <ArrowUpRight size={15} />
+            </Link>
+          </div>
         ) : bookings.length ? (
           <div style={{ display: 'grid', gap: 20 }}>
             {bookings.map(booking => (
@@ -101,6 +92,7 @@ export default function TicketsPage() {
                   gap: 20,
                   alignItems: 'center',
                 }}
+                className="ticket-list-card"
               >
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -119,31 +111,31 @@ export default function TicketsPage() {
                     <span style={{ color: 'var(--muted)', font: '11px var(--mono)' }}>REF: {booking.bookingRef}</span>
                   </div>
 
-                  <h3 style={{ font: '26px var(--serif)', color: 'var(--paper)', margin: '0 0 6px', fontWeight: 400 }}>
-                    {booking.eventTitle || 'The Night We Remember'}
+                  <h3 style={{ font: 'clamp(20px,3vw,26px) var(--serif)', color: 'var(--paper)', margin: '0 0 6px', fontWeight: 400 }}>
+                    {booking.eventTitle || 'Encore Event'}
                   </h3>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, color: '#c0b6af', fontSize: 12, margin: '8px 0 12px' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <MapPin size={13} color="var(--coral)" /> {booking.venue || 'Riverside Grounds'}, {booking.city || 'Mumbai'}
+                      <MapPin size={13} color="var(--coral)" /> {booking.venue || 'Venue'}, {booking.city || 'City'}
                     </span>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                       <CalendarDays size={13} color="var(--coral)" />{' '}
-                      {booking.startsAt ? new Date(booking.startsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '28 Aug 2026'}
+                      {booking.startsAt ? new Date(booking.startsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}
                     </span>
-                    <span>{booking.seatsCount || 2} Seat(s)</span>
+                    <span>{Number(booking.seatsCount) || 1} Seat(s)</span>
                   </div>
 
                   <strong style={{ font: '13px var(--mono)', color: 'var(--paper)' }}>
-                    Total: ₹{Math.round(booking.totalPaise / 100).toLocaleString('en-IN')}
+                    Total: &#8377;{Math.round(booking.totalPaise / 100).toLocaleString('en-IN')}
                   </strong>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <Link
-                    href={`/booking/${booking.bookingRef}/confirmation`}
+                    href={`/booking/${booking.bookingRef}/confirmation?showId=${booking.showId || ''}`}
                     className="coral-button"
-                    style={{ padding: '10px 18px', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11 }}
+                    style={{ padding: '10px 18px', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, whiteSpace: 'nowrap' }}
                   >
                     Open QR Pass <ArrowUpRight size={14} />
                   </Link>

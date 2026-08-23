@@ -847,6 +847,7 @@ export class AppController {
         eventTitle: events.title,
         venue: venues.name,
         city: venues.city,
+        seatsCount: sql<number>`(select count(*) from booking_seats where booking_id = ${bookings.id})`,
       })
       .from(bookings)
       .innerJoin(shows, eq(shows.id, bookings.showId))

@@ -226,3 +226,120 @@ button { cursor:pointer; }
     background: #ffffff !important;
     color: #000000 !important;
   }
+}
+
+/* ── Comprehensive Mobile Optimizations ─────────────────────────── */
+@media (max-width: 850px) {
+  /* Ticket list card: stack to single column on mobile */
+  .ticket-list-card {
+    grid-template-columns: 1fr !important;
+  }
+  .ticket-list-card > div:last-child {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+  }
+
+  /* Bookings/confirmation ticket stub: stack QR below content */
+  .ticket-stub {
+    grid-template-columns: 1fr !important;
+  }
+  .ticket-qr {
+    border-left: 0 !important;
+    border-top: 1px dashed #3d342f;
+    padding: 20px 0 0 !important;
+    margin-top: 20px;
+  }
+
+  /* Confirmation page actions */
+  .confirmation-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .confirmation-actions a,
+  .confirmation-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Checkout panel auth/payment grid */
+  .checkout-grid {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+  .checkout-order {
+    position: static !important;
+    margin-top: 0 !important;
+  }
+
+  /* Seat picker on mobile */
+  .booking-area {
+    grid-template-columns: 1fr !important;
+    padding: 24px 16px 60px !important;
+  }
+  .booking-summary {
+    position: static !important;
+  }
+
+  /* Summary meta grid on small screens */
+  .stub-meta {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Event detail mobile */
+  .event-detail-body {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+    padding: 60px 20px 80px !important;
+  }
+
+  /* Portal nav mobile */
+  .portal-nav-center {
+    display: none !important;
+  }
+
+  /* Admin/organiser metric grid */
+  .metric-row {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Hold countdown on mobile */
+  .hold-countdown {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  /* Waitlist offer panel */
+  .offer-panel {
+    padding: 20px !important;
+  }
+}
+
+@media (max-width: 540px) {
+  /* Very small phones */
+  .stub-meta {
+    grid-template-columns: 1fr !important;
+  }
+  .metric-row {
+    grid-template-columns: 1fr !important;
+  }
+  .ticket-list-card {
+    padding: 18px 16px !important;
+  }
+  .portal-content h1 {
+    font-size: 60px !important;
+    letter-spacing: -3px !important;
+  }
+  .auth-card h1 {
+    font-size: 58px !important;
+  }
+  .seat-grid-large {
+    grid-template-columns: repeat(12, 1fr) !important;
+    gap: 1px !important;
+  }
+  .seat-large {
+    font-size: 7px !important;
+    border-radius: 1px !important;
+  }
+}
