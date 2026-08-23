@@ -97,7 +97,7 @@ function ConfirmationContent() {
           <Check size={28} />
         </div>
 
-        <span className="eyebrow no-print" style={{ color: 'var(--coral)', letterSpacing: '0.12em' }}>
+        <span className="eyebrow no-print" style={{ color: 'var(--coral)', letterSpacing: '0.12em', justifyContent: 'center' }}>
           CONFIRMED ENTRY PASS · RESERVED EXCLUSIVELY
         </span>
 
