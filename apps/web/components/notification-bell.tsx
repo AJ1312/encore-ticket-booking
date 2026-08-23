@@ -70,35 +70,33 @@ export function NotificationBell() {
         aria-label={`Notifications (${unreadCount} unread)`}
         style={{
           position: 'relative',
-          background: open ? '#2a201c' : 'transparent',
-          border: '1px solid #4a362c',
-          borderRadius: '50%',
-          width: 38,
-          height: 38,
-          display: 'grid',
-          placeItems: 'center',
+          background: open ? '#2a1a14' : '#1c1513',
+          border: `1.5px solid ${unreadCount > 0 ? 'var(--coral)' : '#523d32'}`,
+          borderRadius: 999,
+          padding: '7px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
           color: 'var(--peach)',
           cursor: 'pointer',
-          transition: 'all 0.2s',
+          boxShadow: unreadCount > 0 ? '0 0 14px rgba(224, 122, 95, 0.25)' : 'none',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
-        <Bell size={17} />
+        <Bell size={16} color="var(--coral)" style={{ animation: unreadCount > 0 ? 'pulse 2s infinite' : 'none' }} />
+        <span style={{ font: '11px var(--mono)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Alerts
+        </span>
         {unreadCount > 0 && (
           <span
             style={{
-              position: 'absolute',
-              top: -2,
-              right: -2,
               background: 'var(--coral)',
               color: '#ffffff',
               fontSize: 10,
               fontWeight: 700,
-              width: 17,
-              height: 17,
-              borderRadius: '50%',
-              display: 'grid',
-              placeItems: 'center',
-              boxShadow: '0 0 8px var(--coral)',
+              padding: '1px 6px',
+              borderRadius: 999,
+              lineHeight: 1.3,
             }}
           >
             {unreadCount}

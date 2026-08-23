@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X, Users, Utensils } from 'lucide-react';
+import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X, Users, Utensils, Wine, Coffee } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { PortalFooter } from './portal-footer';
@@ -19,6 +19,7 @@ type DiningTable = {
   capacity: 2 | 4 | 6;
   category: string;
   pricePaise: number;
+  section: string;
   status: SeatStatus;
 };
 
@@ -60,23 +61,22 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Convert raw show seats to structured dining tables if isDining
+  // Structured dining floorplan tables
   const diningTables: DiningTable[] = useMemo(() => {
     if (!isDining) return [];
-    // 12 curated dining tables: 4 of 2-top, 5 of 4-top, 3 of 6-top
     return [
-      { id: seats[0]?.id || 't1', tableLabel: 'T1', capacity: 2, category: 'Table for 2', pricePaise: 180000, status: seats[0]?.status || 'available' },
-      { id: seats[1]?.id || 't2', tableLabel: 'T2', capacity: 2, category: 'Table for 2', pricePaise: 180000, status: seats[1]?.status || 'available' },
-      { id: seats[2]?.id || 't3', tableLabel: 'T3', capacity: 2, category: 'Table for 2', pricePaise: 180000, status: seats[2]?.status || 'available' },
-      { id: seats[3]?.id || 't4', tableLabel: 'T4', capacity: 2, category: 'Table for 2', pricePaise: 180000, status: seats[3]?.status || 'available' },
-      { id: seats[4]?.id || 't5', tableLabel: 'T5', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[4]?.status || 'available' },
-      { id: seats[5]?.id || 't6', tableLabel: 'T6', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[5]?.status || 'available' },
-      { id: seats[6]?.id || 't7', tableLabel: 'T7', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[6]?.status || 'available' },
-      { id: seats[7]?.id || 't8', tableLabel: 'T8', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[7]?.status || 'available' },
-      { id: seats[8]?.id || 't9', tableLabel: 'T9', capacity: 4, category: 'Table for 4', pricePaise: 360000, status: seats[8]?.status || 'available' },
-      { id: seats[9]?.id || 't10', tableLabel: 'T10', capacity: 6, category: 'Table for 6', pricePaise: 540000, status: seats[9]?.status || 'available' },
-      { id: seats[10]?.id || 't11', tableLabel: 'T11', capacity: 6, category: 'Table for 6', pricePaise: 540000, status: seats[10]?.status || 'available' },
-      { id: seats[11]?.id || 't12', tableLabel: 'T12', capacity: 6, category: 'Table for 6', pricePaise: 540000, status: seats[11]?.status || 'available' },
+      { id: 't1', tableLabel: 'Table T1', capacity: 2, category: 'Table for 2', section: 'Window Booth', pricePaise: 180000, status: seats[0]?.status || 'available' },
+      { id: 't2', tableLabel: 'Table T2', capacity: 2, category: 'Table for 2', section: 'Window Booth', pricePaise: 180000, status: seats[1]?.status || 'available' },
+      { id: 't3', tableLabel: 'Table T3', capacity: 2, category: 'Table for 2', section: 'Garden Patio', pricePaise: 180000, status: seats[2]?.status || 'available' },
+      { id: 't4', tableLabel: 'Table T4', capacity: 2, category: 'Table for 2', section: 'Garden Patio', pricePaise: 180000, status: seats[3]?.status || 'available' },
+      { id: 't5', tableLabel: 'Table T5', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: 360000, status: seats[4]?.status || 'available' },
+      { id: 't6', tableLabel: 'Table T6', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: 360000, status: seats[5]?.status || 'available' },
+      { id: 't7', tableLabel: 'Table T7', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: 360000, status: seats[6]?.status || 'available' },
+      { id: 't8', tableLabel: 'Table T8', capacity: 4, category: 'Table for 4', section: 'Vinyl Lounge', pricePaise: 360000, status: seats[7]?.status || 'available' },
+      { id: 't9', tableLabel: 'Table T9', capacity: 4, category: 'Table for 4', section: 'Vinyl Lounge', pricePaise: 360000, status: seats[8]?.status || 'available' },
+      { id: 't10', tableLabel: 'Table T10', capacity: 6, category: 'Table for 6', section: 'Chef’s Banquette', pricePaise: 540000, status: seats[9]?.status || 'available' },
+      { id: 't11', tableLabel: 'Table T11', capacity: 6, category: 'Table for 6', section: 'Chef’s Banquette', pricePaise: 540000, status: seats[10]?.status || 'available' },
+      { id: 't12', tableLabel: 'Table T12', capacity: 6, category: 'Table for 6', section: 'Private Alcove', pricePaise: 540000, status: seats[11]?.status || 'available' },
     ];
   }, [isDining, seats]);
 
@@ -104,9 +104,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
       .then(result => {
         setSeats(result.seats || []);
       })
-      .catch(() => {
-        // Keep existing seats
-      })
+      .catch(() => null)
       .finally(() => {
         setLoading(false);
       });
@@ -246,15 +244,31 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                 </span>
               </div>
               <span style={{ fontSize: 11, color: '#c0b6af', display: 'block', marginTop: 2 }}>
-                {isDining ? 'Tables held exclusively for your party' : 'Seats reserved exclusively for you'}
+                {isDining ? 'Tables reserved exclusively for your party' : 'Seats reserved exclusively for you'}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Pricing Category Chips & Notify Bell */}
+        {/* Pricing & Party Size Filter Chips */}
         {isDining ? (
           <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setFilterCategory(null)}
+              style={{
+                padding: '10px 16px',
+                background: filterCategory === null ? '#2d221c' : '#191b1e',
+                border: `1px solid ${filterCategory === null ? 'var(--peach)' : '#332d29'}`,
+                borderRadius: 6,
+                color: filterCategory === null ? 'var(--paper)' : 'var(--muted)',
+                cursor: 'pointer',
+                font: '12px var(--mono)',
+              }}
+            >
+              All Tables (12)
+            </button>
+
             <button
               type="button"
               onClick={() => setFilterCategory(prev => (prev === '2' ? null : '2'))}
@@ -271,7 +285,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             >
               <Users size={16} color="#e07a5f" />
               <strong style={{ font: '13px var(--sans)', color: '#ffd8cc' }}>Table for 2 · ₹1,800</strong>
-              <span style={{ font: '11px var(--mono)', color: '#e07a5f' }}>({table2Count} left)</span>
+              <span style={{ font: '11px var(--mono)', color: '#e07a5f' }}>({table2Count} available)</span>
             </button>
 
             <button
@@ -290,7 +304,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             >
               <Users size={16} color="#52b788" />
               <strong style={{ font: '13px var(--sans)', color: '#d8f3dc' }}>Table for 4 · ₹3,600</strong>
-              <span style={{ font: '11px var(--mono)', color: '#52b788' }}>({table4Count} left)</span>
+              <span style={{ font: '11px var(--mono)', color: '#52b788' }}>({table4Count} available)</span>
             </button>
 
             <button
@@ -309,26 +323,29 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             >
               <Users size={16} color="#748cab" />
               <strong style={{ font: '13px var(--sans)', color: '#e0e1dd' }}>Table for 6 · ₹5,400</strong>
-              <span style={{ font: '11px var(--mono)', color: '#748cab' }}>({table6Count} left)</span>
+              <span style={{ font: '11px var(--mono)', color: '#748cab' }}>({table6Count} available)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setWaitlistOpen(true)}
               style={{
-                padding: '10px 16px',
-                background: '#1c1715',
-                border: '1px solid #5a3c2f',
+                padding: '11px 20px',
+                background: 'linear-gradient(135deg, #2b1812 0%, #1c1411 100%)',
+                border: '1.5px solid var(--coral)',
                 borderRadius: 6,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
                 cursor: 'pointer',
                 color: 'var(--peach)',
+                boxShadow: '0 4px 16px rgba(224, 122, 95, 0.25)',
               }}
             >
-              <Bell size={14} color="var(--coral)" />
-              <span style={{ font: '11px var(--mono)', textTransform: 'uppercase' }}>Notify when tables open</span>
+              <Bell size={15} color="var(--coral)" />
+              <strong style={{ font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Notify When Tables Open
+              </strong>
             </button>
           </div>
         ) : (
@@ -391,19 +408,22 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
               type="button"
               onClick={() => setWaitlistOpen(true)}
               style={{
-                padding: '8px 14px',
-                background: '#1c1715',
-                border: '1px solid #5a3c2f',
+                padding: '10px 18px',
+                background: 'linear-gradient(135deg, #2b1812 0%, #1c1411 100%)',
+                border: '1.5px solid var(--coral)',
                 borderRadius: 6,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
                 cursor: 'pointer',
                 color: 'var(--peach)',
+                boxShadow: '0 4px 16px rgba(224, 122, 95, 0.25)',
               }}
             >
-              <Bell size={14} color="var(--coral)" />
-              <span style={{ font: '12px var(--mono)', textTransform: 'uppercase' }}>Notify when seats open</span>
+              <Bell size={15} color="var(--coral)" />
+              <strong style={{ font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Notify When Seats Open
+              </strong>
             </button>
           </div>
         )}
@@ -421,14 +441,14 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
           ) : isDining ? (
             /* ── RESTAURANT DINING FLOORPLAN ── */
             <div className="seat-canvas" style={{ background: '#0e1012', border: '1px solid #23272d', borderRadius: 8, padding: 32 }}>
-              <div style={{ textAlign: 'center', marginBottom: 32 }}>
+              <div style={{ textAlign: 'center', marginBottom: 28 }}>
                 <span style={{ letterSpacing: '0.3em', fontWeight: 700, fontSize: 12, color: 'var(--peach)', textTransform: 'uppercase' }}>
                   KITCHEN & VINYL RECORD BAR
                 </span>
                 <div style={{ width: '50%', height: 2, background: 'linear-gradient(90deg, transparent, var(--peach), transparent)', margin: '8px auto 0' }} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 18 }}>
                 {diningTables
                   .filter(table => !filterCategory || table.capacity.toString() === filterCategory)
                   .map(table => {
@@ -455,14 +475,13 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                           background: tableBg,
                           border: `2px solid ${tableBorder}`,
                           borderRadius: table.capacity === 2 ? '50%' : table.capacity === 6 ? '12px' : '8px',
-                          padding: table.capacity === 2 ? '28px 16px' : '24px 20px',
-                          aspectRatio: table.capacity === 2 ? '1' : table.capacity === 6 ? '1.8' : '1.2',
+                          padding: '24px 18px',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 6,
-                          cursor: isBooked ? 'pointer' : 'pointer',
+                          cursor: 'pointer',
                           opacity: isBooked ? 0.35 : 1,
                           transform: isSelected ? 'scale(1.05)' : undefined,
                           boxShadow: isSelected ? '0 0 18px var(--coral)' : undefined,
@@ -474,9 +493,9 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                           {table.tableLabel}
                         </strong>
                         <span style={{ fontSize: 11, font: '10px var(--mono)', color: isSelected ? '#ffd8cc' : '#c0b6af' }}>
-                          Table for {table.capacity} Diners
+                          {table.capacity} Diners · {table.section}
                         </span>
-                        <b style={{ fontSize: 12, color: isSelected ? '#fff' : 'var(--paper)', marginTop: 2 }}>
+                        <b style={{ fontSize: 13, color: isSelected ? '#fff' : 'var(--paper)', marginTop: 2 }}>
                           {isBooked ? 'Reserved (Notify)' : `₹${Math.round(table.pricePaise / 100).toLocaleString('en-IN')}`}
                         </b>
                       </button>
@@ -611,7 +630,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
           <div className="summary-rule" />
           <div className="summary-seats">
             <div>
-              <span>{isDining ? `Selected Tables (${selected.length})` : `Selected seats (${selected.length}/8)`}</span>
+              <span>{isDining ? `Reserved Tables (${selected.length})` : `Selected seats (${selected.length}/8)`}</span>
               <b style={{ color: selected.length ? 'var(--peach)' : undefined }}>
                 {isDining
                   ? selected.length
@@ -627,7 +646,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             </div>
             {isDining && (
               <div>
-                <span>Total Guest Capacity</span>
+                <span>Party Size Capacity</span>
                 <b style={{ color: 'var(--paper)' }}>{totalDiners} Guests</b>
               </div>
             )}

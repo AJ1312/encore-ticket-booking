@@ -10,11 +10,13 @@ button { cursor:pointer; }
 .eyebrow { display:flex; align-items:center; gap:8px; color:var(--peach); font:11px var(--mono); letter-spacing:1.8px; text-transform:uppercase; }
 .brand { color:#f2b7a7; font:42px var(--serif); letter-spacing:-2px; line-height:1; }
 .brand span,.footer-brand span,.auth-brand span { color:var(--coral); }
-.portal-nav { height:88px; padding:0 5vw; display:flex; align-items:center; gap:28px; border-bottom:1px dashed var(--line); position:sticky; top:0; z-index:20; background:rgba(12,14,16,.86); backdrop-filter:blur(18px); }
-.customer-nav .brand { margin-right:20px; }
-.customer-links { display:flex; gap:25px; margin:auto; font:11px var(--mono); letter-spacing:1.2px; text-transform:uppercase; color:#cbc0b9; }
+.portal-nav { height:84px; padding:0 4vw; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(242,183,167,.12); position:sticky; top:0; z-index:50; background:rgba(12,14,16,.88); backdrop-filter:blur(20px); }
+.nav-left { display:flex; align-items:center; gap:20px; flex:1 1 0%; }
+.customer-nav .brand { margin-right:4px; }
+.portal-nav-center { display:flex; align-items:center; gap:28px; justify-content:center; flex:0 0 auto; font:12px var(--mono); letter-spacing:1.4px; text-transform:uppercase; color:#cbc0b9; }
+.customer-links a,.portal-nav nav a { position:relative; padding:6px 4px; transition:color .2s ease; }
 .customer-links a:hover,.portal-nav nav a:hover { color:var(--coral); }
-.portal-nav nav { display:flex; gap:24px; margin:auto; font:11px var(--mono); letter-spacing:1.4px; text-transform:uppercase; color:#c8bdb6; }
+.nav-right { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex:1 1 0%; }
 .location-pill { display:flex; align-items:center; gap:7px; padding:9px 13px; border:1px solid var(--line); border-radius:999px; color:#d7cbc3; font:11px var(--mono); }
 .location-pill svg { color:var(--coral); }.location-pill b { color:var(--peach); font-weight:400; }
 .city-selector { position:relative; }.city-selector .location-pill { cursor:pointer; background:transparent; }.city-menu { position:absolute; top:48px; left:0; z-index:35; min-width:170px; padding:7px; border:1px solid #51413b; background:#171a1c; box-shadow:0 20px 45px rgba(0,0,0,.4); }.city-menu button { display:flex; justify-content:space-between; width:100%; padding:11px 10px; border:0; background:transparent; color:#d7cbc3; text-align:left; font:11px var(--mono); }.city-menu button:hover,.city-menu button.selected { color:var(--coral); background:#241b18; }

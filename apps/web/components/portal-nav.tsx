@@ -8,10 +8,16 @@ export function PortalNav({ portal = 'customer' }: { portal?: 'customer' | 'orga
   if (portal !== 'customer') {
     return (
       <header className={`portal-nav ${portal}`}>
-        <Link href="/" className="brand">
-          ENCORE<span>.</span>
-        </Link>
-        <nav>
+        <div className="nav-left">
+          <Link href="/" className="brand">
+            ENCORE<span>.</span>
+          </Link>
+          <span className="portal-tag" style={{ font: '10px var(--mono)', textTransform: 'uppercase', padding: '3px 8px', borderRadius: 4, background: portal === 'admin' ? 'rgba(82, 183, 136, 0.15)' : 'rgba(224, 122, 95, 0.15)', color: portal === 'admin' ? 'var(--green)' : 'var(--peach)', letterSpacing: '0.05em' }}>
+            {portal}
+          </span>
+        </div>
+
+        <nav className="portal-nav-center">
           {portal === 'organiser' ? (
             <>
               <Link href="/organiser">Overview</Link>
@@ -27,7 +33,8 @@ export function PortalNav({ portal = 'customer' }: { portal?: 'customer' | 'orga
             </>
           )}
         </nav>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
+        <div className="nav-right">
           <NotificationBell />
           <ProfileMenu />
         </div>
@@ -37,16 +44,21 @@ export function PortalNav({ portal = 'customer' }: { portal?: 'customer' | 'orga
 
   return (
     <header className="portal-nav customer-nav">
-      <Link href="/" className="brand">
-        ENCORE<span>.</span>
-      </Link>
-      <CitySelector />
-      <nav className="customer-links">
+      <div className="nav-left">
+        <Link href="/" className="brand">
+          ENCORE<span>.</span>
+        </Link>
+        <CitySelector />
+      </div>
+
+      <nav className="customer-links portal-nav-center">
         <Link href="/events">Explore</Link>
-        <Link href="/events?kind=events">Live events</Link>
+        <Link href="/events?kind=events">Live Events</Link>
         <Link href="/events?kind=movies">Movies</Link>
+        <Link href="/events?kind=dining">Dining</Link>
       </nav>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+
+      <div className="nav-right">
         <SearchNavButton />
         <NotificationBell />
         <ProfileMenu />

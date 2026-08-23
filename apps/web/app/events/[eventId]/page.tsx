@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, ArrowUpRight, CalendarDays, Clock3, MapPin, Utensils } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bell, CalendarDays, Clock3, MapPin, Utensils } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
@@ -86,6 +86,30 @@ export default async function EventDetailPage({ params }: { params: Promise<{ ev
               )}
             </Link>
           </div>
+
+          <div style={{ marginTop: 14 }}>
+            <Link
+              href={`/shows/${event.slug}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '12px 18px',
+                background: '#1d1715',
+                border: '1.5px solid var(--coral)',
+                borderRadius: 6,
+                color: 'var(--peach)',
+                fontSize: 12,
+                font: '11px var(--mono)',
+                textTransform: 'uppercase',
+                boxShadow: '0 4px 14px rgba(224, 122, 95, 0.15)',
+              }}
+            >
+              <Bell size={14} color="var(--coral)" /> Get Waitlist Notifications & Alerts
+            </Link>
+          </div>
+
           <ShareButton />
         </aside>
       </section>
