@@ -88,33 +88,16 @@ export function ProfileMenu() {
           position: 'relative',
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          background: session ? '#231d1a' : 'transparent',
-          border: `1px solid ${session ? 'var(--coral)' : 'var(--line)'}`,
-          padding: session ? '6px 12px' : '8px',
-          borderRadius: 999,
-          color: session ? 'var(--paper)' : 'var(--peach)',
+          justifyContent: 'center',
+          background: 'transparent',
+          border: '1px solid var(--line)',
+          padding: '8px',
+          borderRadius: '50%',
+          color: 'var(--peach)',
           cursor: 'pointer',
         }}
       >
         <User size={18} strokeWidth={1.5} />
-        {session && (
-          <>
-            <span style={{ fontSize: 11, font: '11px var(--mono)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {session.name.split(' ')[0]}
-            </span>
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: 'var(--green)',
-                display: 'inline-block',
-                boxShadow: '0 0 6px var(--green)',
-              }}
-            />
-          </>
-        )}
       </button>
 
       {open && (
