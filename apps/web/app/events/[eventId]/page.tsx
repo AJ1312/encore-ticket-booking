@@ -23,7 +23,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ ev
       const data = await res.json();
       const match = (data.events || []).find((e: any) => {
         const slug = e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        return slug === eventId;
+        return slug === eventId || e.showId === eventId || e.id === eventId;
       });
 
       if (!match) notFound();

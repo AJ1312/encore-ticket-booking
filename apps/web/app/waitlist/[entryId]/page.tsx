@@ -14,6 +14,17 @@ export default function WaitlistOfferPage({ params }: { params: Promise<{ entryI
   const [seconds, setSeconds] = useState(900); // 15-minute countdown
   const [claimed, setClaimed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [entry, setEntry] = useState<{ showId: string; offeredSeatIds: string[] } | null>(null);
+
+  useEffect(() => {
+    apiJson<{ waitlist: any[] }>(`/waitlist/${entryId}`)
+      .then(res => {
+        if (res.waitlist && res.waitlist[0]) {
+          setEntry(res.waitlist[0]);
+        }
+      })
+      .catch(() => null);
+  }, [entryId]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -34,12 +45,16 @@ export default function WaitlistOfferPage({ params }: { params: Promise<{ entryI
       await apiJson(`/waitlist/${entryId}/claim`, { method: 'POST' }).catch(() => null);
       setClaimed(true);
       setTimeout(() => {
-        router.push('/shows/the-night-we-remember/checkout?seats=s-a1');
+        const routeShow = entry?.showId || 'the-night-we-remember';
+        const routeSeats = entry?.offeredSeatIds?.length ? entry.offeredSeatIds.join(',') : 's-a1';
+        router.push(`/shows/${routeShow}/checkout?seats=${routeSeats}`);
       }, 1200);
     } catch {
       setClaimed(true);
       setTimeout(() => {
-        router.push('/shows/the-night-we-remember/checkout?seats=s-a1');
+        const routeShow = entry?.showId || 'the-night-we-remember';
+        const routeSeats = entry?.offeredSeatIds?.length ? entry.offeredSeatIds.join(',') : 's-a1';
+        router.push(`/shows/${routeShow}/checkout?seats=${routeSeats}`);
       }, 1200);
     } finally {
       setLoading(false);
