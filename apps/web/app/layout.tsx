@@ -6,6 +6,15 @@ import { CookieBanner } from '@/components/cookie-banner';
 export const metadata: Metadata = {
   title: 'Encore — Ticketing, beautifully considered',
   description: 'A calm, fair way to find and book the nights worth remembering.',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: [
+      { url: '/apple-icon.svg', type: 'image/svg+xml' },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
