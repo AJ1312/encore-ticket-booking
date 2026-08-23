@@ -157,6 +157,7 @@ button { cursor:pointer; }
 .wm-dismiss { width:100%; justify-content:center; }
 
 /* ── Print Receipt Styles ────────────────────────────────────────── */
+@media print {
   .no-print, nav, footer, .portal-nav, .portal-footer, button, .confirmation-actions {
     display: none !important;
   }

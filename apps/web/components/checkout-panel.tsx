@@ -269,7 +269,8 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
       }
 
       setState('confirmed');
-      router.push(`/booking/${ref}/confirmation${tokenQuery}`);
+      const finalTokenQuery = tokenQuery ? `${tokenQuery}&showId=${showId}` : `?showId=${showId}`;
+      router.push(`/booking/${ref}/confirmation${finalTokenQuery}`);
     } catch {
       const ref = `ENC-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
       try {
@@ -279,7 +280,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           title: 'Booking Confirmed',
           message: `Your ticket pass for ${eventMeta.title} is ready. Present QR at gate.`,
           timestamp: 'Just now',
-          link: `/booking/${ref}/confirmation`,
+          link: `/booking/${ref}/confirmation?showId=${showId}`,
           unread: true,
         };
         const existing = JSON.parse(window.localStorage.getItem('encore_user_notifications') || '[]');
@@ -290,7 +291,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
         // ignore
       }
       setState('confirmed');
-      router.push(`/booking/${ref}/confirmation`);
+      router.push(`/booking/${ref}/confirmation?showId=${showId}`);
     }
   }
 

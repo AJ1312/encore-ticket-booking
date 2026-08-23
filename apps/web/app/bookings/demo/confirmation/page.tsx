@@ -8,12 +8,15 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { apiJson } from '@/lib/api';
 import { QRCodeDisplay } from '@/components/qr-code';
+import { getEvent } from '@/lib/events';
 
 function ConfirmationContent() {
   const params = useParams<{ bookingRef: string }>();
   const searchParams = useSearchParams();
   const rawToken = searchParams.get('token');
+  const showIdQuery = searchParams.get('showId');
   const ref = params?.bookingRef || 'ENC-55F9CA50';
+  const fallbackEvent = showIdQuery ? getEvent(showIdQuery) : getEvent('the-night-we-remember');
 
   const [booking, setBooking] = useState<{
     bookingRef: string;
@@ -28,10 +31,10 @@ function ConfirmationContent() {
   }>({
     bookingRef: ref,
     totalPaise: 299800,
-    eventTitle: 'The Night We Remember',
-    venue: 'Riverside Grounds',
-    city: 'Mumbai',
-    startsAt: '2026-08-28T14:30:00.000Z',
+    eventTitle: fallbackEvent.title,
+    venue: fallbackEvent.venue,
+    city: fallbackEvent.city,
+    startsAt: '2026-08-28T14:30:00.000Z', // Can be updated if needed
     customerName: 'Aarav Sharma',
     qrToken: rawToken || undefined,
     seats: [
