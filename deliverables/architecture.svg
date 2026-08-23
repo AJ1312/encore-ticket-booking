@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+    <rect width="100%" height="100%" fill="#ffffff"/>
+    
+    <!-- Client Layer -->
+    <rect x="50" y="50" width="200" height="80" rx="10" fill="#E07A5F" stroke="#333" stroke-width="2"/>
+    <text x="150" y="90" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="middle">Browser / Client</text>
+    <text x="150" y="110" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="white" text-anchor="middle">Next.js 15 (React)</text>
+
+    <!-- Edge/CDN Layer -->
+    <rect x="350" y="50" width="200" height="80" rx="10" fill="#F2CC8F" stroke="#333" stroke-width="2"/>
+    <text x="450" y="90" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="#333" text-anchor="middle">Vercel &amp; Cloudflare</text>
+    <text x="450" y="110" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#333" text-anchor="middle">CDN, SSL, DNS Shield</text>
+    
+    <!-- Backend Layer -->
+    <rect x="250" y="200" width="300" height="100" rx="10" fill="#81B29A" stroke="#333" stroke-width="2"/>
+    <text x="400" y="240" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="bold" fill="white" text-anchor="middle">NestJS API (Render)</text>
+    <text x="400" y="265" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="white" text-anchor="middle">Auth • Seats • Bookings • Waitlist</text>
+
+    <!-- DB Layer -->
+    <rect x="100" y="380" width="250" height="80" rx="10" fill="#3D405B" stroke="#333" stroke-width="2"/>
+    <text x="225" y="420" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="middle">Neon PostgreSQL</text>
+    <text x="225" y="440" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="white" text-anchor="middle">Serverless DB (Drizzle ORM)</text>
+
+    <!-- Redis Layer -->
+    <rect x="450" y="380" width="250" height="80" rx="10" fill="#E07A5F" stroke="#333" stroke-width="2"/>
+    <text x="575" y="420" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="middle">Upstash Redis</text>
+    <text x="575" y="440" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="white" text-anchor="middle">BullMQ Background Jobs</text>
+
+    <!-- Connections -->
+    <!-- Client to CDN -->
+    <path d="M 250 90 L 330 90" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="295" y="80" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#666" text-anchor="middle">HTTPS</text>
+    
+    <!-- CDN to API -->
+    <path d="M 450 130 L 400 190" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="440" y="170" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#666" text-anchor="middle">Bearer JWT</text>
+    
+    <!-- API to DB -->
+    <path d="M 350 300 L 250 370" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="280" y="330" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#666" text-anchor="middle">SQL</text>
+    
+    <!-- API to Redis -->
+    <path d="M 450 300 L 550 370" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="520" y="330" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#666" text-anchor="middle">TCP</text>
+    
+    <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L9,3 z" fill="#333" />
+        </marker>
+    </defs>
+</svg>
