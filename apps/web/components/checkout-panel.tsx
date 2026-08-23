@@ -164,8 +164,9 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
       }).catch(() => null);
 
       const ref = result?.bookingRef || `ENC-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+      const tokenQuery = result?.qrToken ? `?token=${encodeURIComponent(result.qrToken)}` : '';
       setState('confirmed');
-      router.push(`/booking/${ref}/confirmation`);
+      router.push(`/booking/${ref}/confirmation${tokenQuery}`);
     } catch {
       const ref = `ENC-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
       setState('confirmed');

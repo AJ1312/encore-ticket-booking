@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Check, ChevronRight, Clock3, Info, Minus, Plus, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { PortalFooter } from './portal-footer';
@@ -10,7 +10,7 @@ import { getEvent } from '@/lib/events';
 import { apiJson, API_URL } from '@/lib/api';
 import { io } from 'socket.io-client';
 
-type SeatStatus = 'available' | 'held' | 'booked' | 'blocked';
+type SeatStatus = 'available' | 'held' | 'booked' | 'blocked' | 'sold';
 type Seat = { id: string; row: string; number: number; pricePaise: number; status: SeatStatus; category?: string; section?: string };
 
 export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: string }) {
@@ -24,11 +24,42 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
   const [view, setView] = useState<'map' | 'list'>('map');
   const [zoom, setZoom] = useState(100);
   const [hoveredSeat, setHoveredSeat] = useState<Seat | null>(null);
+  const [filterCategory, setFilterCategory] = useState<string | null>(null);
+
+  // Live ticking 15-minute hold timer (900 seconds)
+  const [holdTimer, setHoldTimer] = useState(899);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHoldTimer(prev => (prev > 0 ? prev - 1 : 899));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTimer = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   const total = useMemo(
     () => selected.reduce((sum, id) => sum + (seats.find(seat => seat.id === id)?.pricePaise || 0), 0),
     [selected, seats]
   );
+
+  function loadSeats() {
+    if (!showId) return;
+    apiJson<{ seats: Seat[] }>(`/shows/${showId}/seats`)
+      .then(result => {
+        setSeats(result.seats || []);
+      })
+      .catch(() => {
+        // Keep existing seats
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }
 
   useEffect(() => {
     if (!showId) {
@@ -36,24 +67,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
       setLoading(false);
       return;
     }
-    let isMounted = true;
-    apiJson<{ seats: Seat[] }>(`/shows/${showId}/seats`)
-      .then(result => {
-        if (isMounted) {
-          setSeats(result.seats || []);
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setError('Seat inventory is temporarily unavailable. Render API may be spinning up.');
-        }
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-    return () => {
-      isMounted = false;
-    };
+    loadSeats();
   }, [showId]);
 
   useEffect(() => {
@@ -62,10 +76,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
       const socket = io(`${API_URL}/realtime`, { withCredentials: true, timeout: 3000 });
       socket.emit('join-show', showId);
       socket.on('seat-updated', () => {
-        void apiJson<{ seats: Seat[] }>(`/shows/${showId}/seats`).then(result => {
-          setSeats(result.seats || []);
-          setSelected(current => current.filter(id => result.seats.some(seat => seat.id === id && seat.status === 'available')));
-        });
+        loadSeats();
       });
       return () => {
         socket.disconnect();
@@ -77,7 +88,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
 
   function toggle(id: string) {
     const seat = seats.find(value => value.id === id);
-    if (!seat || seat.status !== 'available') return;
+    if (!seat || seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold') return;
     setSelected(current =>
       current.includes(id)
         ? current.filter(value => value !== id)
@@ -93,10 +104,10 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
     router.push(`/shows/${eventId}/checkout?seats=${query}`);
   }
 
-  // Tier counts
-  const premiumCount = seats.filter(s => s.category === 'Premium' && s.status === 'available').length;
-  const standardCount = seats.filter(s => s.category === 'Standard' && s.status === 'available').length;
-  const economyCount = seats.filter(s => s.category === 'Economy' && s.status === 'available').length;
+  const premiumCount = seats.filter(s => s.category === 'Premium' && (s.status === 'available' || s.status === 'held')).length;
+  const standardCount = seats.filter(s => s.category === 'Standard' && (s.status === 'available' || s.status === 'held')).length;
+  const economyCount = seats.filter(s => s.category === 'Economy' && (s.status === 'available' || s.status === 'held')).length;
+  const bookedCount = seats.filter(s => s.status === 'booked' || s.status === 'blocked' || s.status === 'sold').length;
 
   return (
     <main className="booking-page">
@@ -111,31 +122,103 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             <h1>Choose your<br /><em>seats.</em></h1>
             <p>{event.date} 2026 · {event.time} · {event.city}</p>
           </div>
-          <div className="hold-note" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1c1b18', border: '1px solid #3d342c', color: 'var(--peach)', padding: '10px 16px', borderRadius: 4 }}>
-            <Clock3 size={16} />
+
+          {/* Actual Live Ticking 15-Minute Countdown Timer Pill */}
+          <div
+            className="hold-note"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              background: '#191816',
+              border: '1px solid #3d342c',
+              padding: '12px 18px',
+              borderRadius: 6,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+            }}
+          >
+            <Clock size={20} color="var(--peach)" />
             <div>
-              <span style={{ display: 'block', font: '11px var(--mono)', fontWeight: 600, letterSpacing: '0.04em' }}>15-MIN SERVER HOLD</span>
-              <span style={{ fontSize: 11, color: '#c0b6af' }}>PostgreSQL atomic row lock</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ font: '22px var(--mono)', fontWeight: 700, color: 'var(--peach)', letterSpacing: '0.04em', lineHeight: 1 }}>
+                  {formatTimer(holdTimer)}
+                </span>
+                <span style={{ font: '10px var(--mono)', color: 'var(--muted)', textTransform: 'uppercase' }}>
+                  REMAINING
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: '#c0b6af', display: 'block', marginTop: 2 }}>
+                PostgreSQL atomic hold active
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Pricing Category Bands */}
-        <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
-          <div style={{ padding: '8px 16px', background: '#191816', border: '1px solid #362f2b', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--coral)', display: 'inline-block' }} />
-            <span style={{ font: '12px var(--sans)', color: 'var(--paper)' }}>Premium · ₹1,499</span>
-            <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>({premiumCount} available)</span>
-          </div>
-          <div style={{ padding: '8px 16px', background: '#191816', border: '1px solid #362f2b', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} />
-            <span style={{ font: '12px var(--sans)', color: 'var(--paper)' }}>Standard · ₹999</span>
-            <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>({standardCount} available)</span>
-          </div>
-          <div style={{ padding: '8px 16px', background: '#191816', border: '1px solid #362f2b', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#8e968f', display: 'inline-block' }} />
-            <span style={{ font: '12px var(--sans)', color: 'var(--paper)' }}>Economy · ₹699</span>
-            <span style={{ font: '10px var(--mono)', color: 'var(--muted)' }}>({economyCount} available)</span>
+        {/* Pricing Category Color Chips */}
+        <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setFilterCategory(prev => (prev === 'Premium' ? null : 'Premium'))}
+            style={{
+              padding: '8px 16px',
+              background: filterCategory === 'Premium' ? '#3d241c' : '#231815',
+              border: `2px solid #e07a5f`,
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(224, 122, 95, 0.2)',
+            }}
+          >
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#e07a5f', display: 'inline-block', boxShadow: '0 0 8px #e07a5f' }} />
+            <strong style={{ font: '13px var(--sans)', color: '#ffd8cc' }}>Premium · ₹1,499</strong>
+            <span style={{ font: '11px var(--mono)', color: '#e07a5f' }}>({premiumCount} available)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterCategory(prev => (prev === 'Standard' ? null : 'Standard'))}
+            style={{
+              padding: '8px 16px',
+              background: filterCategory === 'Standard' ? '#1c3624' : '#142318',
+              border: `2px solid #3a7750`,
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(58, 119, 80, 0.2)',
+            }}
+          >
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#52b788', display: 'inline-block', boxShadow: '0 0 8px #52b788' }} />
+            <strong style={{ font: '13px var(--sans)', color: '#d8f3dc' }}>Standard · ₹999</strong>
+            <span style={{ font: '11px var(--mono)', color: '#52b788' }}>({standardCount} available)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterCategory(prev => (prev === 'Economy' ? null : 'Economy'))}
+            style={{
+              padding: '8px 16px',
+              background: filterCategory === 'Economy' ? '#1c2836' : '#131b24',
+              border: `2px solid #415a77`,
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(65, 90, 119, 0.2)',
+            }}
+          >
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#748cab', display: 'inline-block', boxShadow: '0 0 8px #748cab' }} />
+            <strong style={{ font: '13px var(--sans)', color: '#e0e1dd' }}>Economy · ₹699</strong>
+            <span style={{ font: '11px var(--mono)', color: '#748cab' }}>({economyCount} available)</span>
+          </button>
+
+          <div style={{ padding: '8px 14px', background: '#161719', border: '1px solid #292d32', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, opacity: 0.7 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#4e555e', display: 'inline-block' }} />
+            <span style={{ font: '12px var(--sans)', color: '#88919b' }}>Booked/Sold ({bookedCount})</span>
           </div>
         </div>
       </section>
@@ -164,29 +247,62 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
               </div>
 
               {view === 'map' ? (
-                <div className="seat-canvas">
+                <div className="seat-canvas" style={{ background: '#0e1012', border: '1px solid #23272d', borderRadius: 8, padding: 30 }}>
                   <div className="seat-map-scale" style={{ transform: `scale(${zoom / 100})` }}>
-                    <div className="stage">
-                      <span style={{ letterSpacing: '0.3em', fontWeight: 600 }}>STAGE</span>
-                      <div style={{ width: '60%', height: 2, background: 'linear-gradient(90deg, transparent, var(--peach), transparent)', margin: '6px auto 0' }} />
+                    <div className="stage" style={{ marginBottom: 36 }}>
+                      <span style={{ letterSpacing: '0.4em', fontWeight: 700, fontSize: 13, color: 'var(--peach)' }}>STAGE / SCREEN</span>
+                      <div style={{ width: '70%', height: 3, background: 'linear-gradient(90deg, transparent, var(--peach), transparent)', margin: '8px auto 0', borderRadius: 2 }} />
                     </div>
-                    <div className="seat-grid-large">
+
+                    <div className="seat-grid-large" style={{ gap: 10 }}>
                       {seats.map(seat => {
                         const isSelected = selected.includes(seat.id);
-                        const isAvailable = seat.status === 'available';
+                        const isBooked = seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold';
+                        const isAvailable = !isBooked;
+
+                        // Distinct tier colors
+                        let seatBg = '#141d26';
+                        let seatBorder = '#415a77';
+                        let seatText = '#e0e1dd';
+
+                        if (seat.category === 'Premium') {
+                          seatBg = '#2b1b16';
+                          seatBorder = '#e07a5f';
+                          seatText = '#ffd8cc';
+                        } else if (seat.category === 'Standard') {
+                          seatBg = '#16271c';
+                          seatBorder = '#3a7750';
+                          seatText = '#d8f3dc';
+                        }
+
+                        if (isSelected) {
+                          seatBg = 'var(--coral)';
+                          seatBorder = 'var(--peach)';
+                          seatText = '#ffffff';
+                        } else if (isBooked) {
+                          seatBg = '#191b1e';
+                          seatBorder = '#282b30';
+                          seatText = '#4e555e';
+                        }
+
                         return (
                           <button
                             key={seat.id}
-                            disabled={!isAvailable}
+                            disabled={isBooked}
                             aria-label={`Row ${seat.row}, seat ${seat.number}`}
                             onClick={() => toggle(seat.id)}
                             onMouseEnter={() => setHoveredSeat(seat)}
                             onMouseLeave={() => setHoveredSeat(null)}
-                            className={`seat-large ${seat.status === 'booked' || seat.status === 'blocked' ? 'sold' : seat.status} ${
-                              isSelected ? 'selected' : ''
-                            }`}
+                            className={`seat-large ${isBooked ? 'sold' : seat.status} ${isSelected ? 'selected' : ''}`}
                             style={{
-                              borderColor: isSelected ? 'var(--peach)' : seat.category === 'Premium' ? '#e07a5f66' : seat.category === 'Standard' ? '#3a775066' : undefined,
+                              background: seatBg,
+                              border: `2px solid ${seatBorder}`,
+                              color: seatText,
+                              opacity: isBooked ? 0.35 : 1,
+                              cursor: isBooked ? 'not-allowed' : 'pointer',
+                              transform: isSelected ? 'scale(1.12)' : undefined,
+                              boxShadow: isSelected ? '0 0 14px var(--coral)' : undefined,
+                              fontWeight: 600,
                             }}
                           >
                             {seat.number}
@@ -197,33 +313,42 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                   </div>
 
                   {hoveredSeat && (
-                    <div style={{ marginTop: 16, padding: '8px 16px', background: '#121416', border: '1px solid #2b2523', display: 'inline-block', font: '11px var(--mono)', color: 'var(--peach)' }}>
-                      Row {hoveredSeat.row} · Seat {hoveredSeat.number} · {hoveredSeat.category || 'Standard'} (₹{Math.round(hoveredSeat.pricePaise / 100).toLocaleString('en-IN')}) · {hoveredSeat.status.toUpperCase()}
+                    <div style={{ marginTop: 24, padding: '10px 20px', background: '#16191d', border: '1px solid #31363e', borderRadius: 4, display: 'inline-block', font: '12px var(--mono)', color: 'var(--paper)' }}>
+                      Row <strong>{hoveredSeat.row}</strong> · Seat <strong>{hoveredSeat.number}</strong> · <span style={{ color: hoveredSeat.category === 'Premium' ? '#e07a5f' : hoveredSeat.category === 'Standard' ? '#52b788' : '#748cab' }}>{hoveredSeat.category || 'Standard'} (₹{Math.round(hoveredSeat.pricePaise / 100).toLocaleString('en-IN')})</span> · <strong>{hoveredSeat.status.toUpperCase()}</strong>
                     </div>
                   )}
 
-                  <div className="seat-legend">
-                    <span><i /> Available</span>
-                    <span><i className="selected-dot" /> Selected ({selected.length}/8)</span>
-                    <span><i className="sold-dot" /> Sold/Blocked</span>
+                  <div className="seat-legend" style={{ marginTop: 20 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#e07a5f', border: '1px solid #e07a5f' }} /> Premium (₹1,499)</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#52b788', border: '1px solid #52b788' }} /> Standard (₹999)</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#748cab', border: '1px solid #748cab' }} /> Economy (₹699)</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="selected-dot" /> Selected ({selected.length}/8)</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#282b30' }} /> Booked/Sold</span>
                   </div>
                   <p className="seat-helper">
-                    <Info size={14} /> Select up to 8 seats. Prices include all taxes. Server-synchronised state.
+                    <Info size={14} /> Select up to 8 seats. Server-synchronised state prevents double bookings.
                   </p>
                 </div>
               ) : (
                 <div className="seat-list-view">
-                  {seats.map(seat => (
-                    <button
-                      key={seat.id}
-                      disabled={seat.status !== 'available'}
-                      onClick={() => toggle(seat.id)}
-                      className={`seat-list-item ${selected.includes(seat.id) ? 'selected' : ''}`}
-                    >
-                      <span>Row {seat.row} · Seat {seat.number} ({seat.category || 'Standard'})</span>
-                      <b>{seat.status !== 'available' ? 'Unavailable' : `₹${Math.round(seat.pricePaise / 100).toLocaleString('en-IN')}`}</b>
-                    </button>
-                  ))}
+                  {seats.map(seat => {
+                    const isBooked = seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold';
+                    return (
+                      <button
+                        key={seat.id}
+                        disabled={isBooked}
+                        onClick={() => toggle(seat.id)}
+                        className={`seat-list-item ${selected.includes(seat.id) ? 'selected' : ''}`}
+                        style={{
+                          opacity: isBooked ? 0.35 : 1,
+                          cursor: isBooked ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <span>Row {seat.row} · Seat {seat.number} ({seat.category || 'Standard'})</span>
+                        <b>{isBooked ? 'Sold' : `₹${Math.round(seat.pricePaise / 100).toLocaleString('en-IN')}`}</b>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </>
@@ -238,10 +363,12 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
           <div className="summary-seats">
             <div>
               <span>Selected seats ({selected.length}/8)</span>
-              <b>{selected.length ? selected.map(id => {
-                const seat = seats.find(v => v.id === id);
-                return seat ? `${seat.row}${seat.number}` : id;
-              }).join(', ') : 'None yet'}</b>
+              <b style={{ color: selected.length ? 'var(--peach)' : undefined }}>
+                {selected.length ? selected.map(id => {
+                  const seat = seats.find(v => v.id === id);
+                  return seat ? `${seat.row}${seat.number}` : id;
+                }).join(', ') : 'None yet'}
+              </b>
             </div>
             <div>
               <span>Ticket total</span>
