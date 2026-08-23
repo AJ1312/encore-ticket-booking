@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Check, Download, Printer, ShieldCheck } from 'lucide-react';
+import { Check, Download, Printer, ShieldCheck, Calendar, Clock, MapPin, Ticket, Sparkles, ArrowRight } from 'lucide-react';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -13,7 +13,7 @@ function ConfirmationContent() {
   const params = useParams<{ bookingRef: string }>();
   const searchParams = useSearchParams();
   const rawToken = searchParams.get('token');
-  const ref = params?.bookingRef || 'ENC-DEMO789';
+  const ref = params?.bookingRef || 'ENC-55F9CA50';
 
   const [booking, setBooking] = useState<{
     bookingRef: string;
@@ -23,6 +23,7 @@ function ConfirmationContent() {
     city?: string;
     startsAt?: string;
     qrToken?: string;
+    customerName?: string;
     seats?: Array<{ row: string; number: number; category?: string }>;
   }>({
     bookingRef: ref,
@@ -31,8 +32,12 @@ function ConfirmationContent() {
     venue: 'Riverside Grounds',
     city: 'Mumbai',
     startsAt: '2026-08-28T14:30:00.000Z',
+    customerName: 'Aarav Sharma',
     qrToken: rawToken || undefined,
-    seats: [{ row: 'A', number: 1, category: 'Premium' }, { row: 'A', number: 2, category: 'Premium' }],
+    seats: [
+      { row: 'A', number: 1, category: 'Premium' },
+      { row: 'A', number: 2, category: 'Premium' },
+    ],
   });
 
   useEffect(() => {
@@ -45,6 +50,7 @@ function ConfirmationContent() {
         city?: string;
         startsAt?: string;
         qrToken?: string;
+        customerName?: string;
         seats?: Array<{ row: string; number: number; category?: string }>;
       }>(`/bookings/${ref}`)
         .then(data => {
@@ -68,122 +74,186 @@ function ConfirmationContent() {
     : `https://encore-ticket-booking-web.vercel.app/verify/${qrPayload}`;
 
   return (
-    <main className="confirmation-page">
+    <main className="confirmation-page" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <div className="no-print">
         <PortalNav />
       </div>
 
-      <section className="confirmation-wrap">
-        <div className="confirmation-mark no-print">
-          <Check size={26} />
+      <section className="confirmation-wrap" style={{ maxWidth: 860, margin: '0 auto', padding: '60px 24px 100px' }}>
+        <div
+          className="confirmation-mark no-print"
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: '50%',
+            background: '#1a3022',
+            border: '1px solid #336644',
+            color: 'var(--green)',
+            display: 'grid',
+            placeItems: 'center',
+            margin: '0 auto 20px',
+          }}
+        >
+          <Check size={28} />
         </div>
-        <span className="eyebrow no-print">Booking confirmed · PostgreSQL source of truth</span>
-        <h1 className="no-print">
+
+        <span className="eyebrow no-print" style={{ color: 'var(--coral)', letterSpacing: '0.12em' }}>
+          CONFIRMED ENTRY PASS · RESERVED EXCLUSIVELY
+        </span>
+
+        <h1 className="no-print" style={{ margin: '14px 0 12px', font: 'clamp(48px, 6vw, 76px) var(--serif)', fontWeight: 400, color: 'var(--paper)', lineHeight: 0.95 }}>
           Your ticket<br />
-          <em>is waiting.</em>
+          <em style={{ color: 'var(--peach)', fontStyle: 'italic' }}>is ready.</em>
         </h1>
-        <p className="confirmation-sub no-print">
-          Your seat reservation is locked and cryptographically verified in PostgreSQL. Present this dynamic QR code at the venue entry.
+
+        <p className="confirmation-sub no-print" style={{ color: 'var(--muted)', fontSize: 14, maxWidth: 500, margin: '0 auto 36px', lineHeight: 1.6 }}>
+          Your seats are confirmed and your entry pass has been generated. Present this QR code at the venue gate or print your receipt below.
         </p>
 
-        {/* Printable Ticket Voucher */}
+        {/* Premium Printable Ticket Voucher Card */}
         <article
           className="ticket-stub print-ticket"
           style={{
-            background: '#17191b',
-            border: '1px solid #282b2f',
-            borderRadius: 8,
-            padding: 28,
-            margin: '30px 0',
+            background: 'linear-gradient(135deg, #171a1d 0%, #121416 100%)',
+            border: '1px solid #3d342f',
+            borderLeft: '5px solid var(--coral)',
+            borderRadius: 10,
+            padding: '32px 36px',
+            margin: '0 auto 36px',
             display: 'grid',
             gridTemplateColumns: '1fr auto',
-            gap: 24,
+            gap: 32,
             alignItems: 'center',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+            textAlign: 'left',
           }}
         >
           <div>
-            <span
-              className="ticket-status"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                color: '#9ab5a1',
-                fontSize: 12,
-                font: '11px var(--mono)',
-                textTransform: 'uppercase',
-                marginBottom: 12,
-              }}
-            >
-              <ShieldCheck size={16} color="var(--green)" /> Confirmed & Unique QR Verified
-            </span>
-            <h2 style={{ font: '32px var(--serif)', margin: '0 0 6px', color: 'var(--paper)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  background: '#16281e',
+                  border: '1px solid #326442',
+                  borderRadius: 999,
+                  color: 'var(--green)',
+                  font: '10px var(--mono)',
+                  textTransform: 'uppercase',
+                }}
+              >
+                <ShieldCheck size={13} /> Confirmed Pass
+              </span>
+              <span style={{ font: '10px var(--mono)', color: 'var(--muted)', textTransform: 'uppercase' }}>
+                Ref: {booking.bookingRef}
+              </span>
+            </div>
+
+            <h2 style={{ font: '36px var(--serif)', margin: '0 0 10px', color: 'var(--paper)', fontWeight: 400, letterSpacing: '-0.5px' }}>
               {booking.eventTitle || 'The Night We Remember'}
             </h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, margin: '0 0 20px' }}>
-              {booking.venue || 'Riverside Grounds'}, {booking.city || 'Mumbai'} ·{' '}
-              {booking.startsAt ? new Date(booking.startsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '28 Aug 2026'}
-            </p>
 
-            <div className="stub-meta" style={{ display: 'flex', gap: 24, borderTop: '1px solid #2b2f35', paddingTop: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, color: '#c0b6af', fontSize: 13, margin: '0 0 24px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <MapPin size={14} color="var(--coral)" /> {booking.venue || 'Riverside Grounds'}, {booking.city || 'Mumbai'}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Calendar size={14} color="var(--coral)" />{' '}
+                {booking.startsAt
+                  ? new Date(booking.startsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : '28 Aug 2026'}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Clock size={14} color="var(--coral)" /> Doors 7:00 PM · Show 8:00 PM
+              </span>
+            </div>
+
+            <div
+              className="stub-meta"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: 20,
+                borderTop: '1px dashed #342c27',
+                paddingTop: 18,
+              }}
+            >
               <div>
-                <small style={{ display: 'block', color: 'var(--muted)', fontSize: 11, font: '10px var(--mono)', textTransform: 'uppercase' }}>Reference</small>
-                <strong style={{ font: '16px var(--mono)', color: 'var(--peach)' }}>{booking.bookingRef}</strong>
+                <small style={{ display: 'block', color: 'var(--muted)', fontSize: 10, font: '10px var(--mono)', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Assigned Seats
+                </small>
+                <strong style={{ font: '15px var(--mono)', color: 'var(--peach)', fontWeight: 600 }}>
+                  {booking.seats?.length
+                    ? booking.seats.map(s => `${s.row}${s.number} (${s.category || 'Standard'})`).join(', ')
+                    : 'A1, A2 (Premium)'}
+                </strong>
               </div>
+
               <div>
-                <small style={{ display: 'block', color: 'var(--muted)', fontSize: 11, font: '10px var(--mono)', textTransform: 'uppercase' }}>Total Paid</small>
-                <strong style={{ font: '16px var(--mono)', color: 'var(--paper)' }}>₹{Math.round(booking.totalPaise / 100).toLocaleString('en-IN')}</strong>
+                <small style={{ display: 'block', color: 'var(--muted)', fontSize: 10, font: '10px var(--mono)', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Total Paid
+                </small>
+                <strong style={{ font: '15px var(--mono)', color: 'var(--paper)', fontWeight: 600 }}>
+                  ₹{Math.round(booking.totalPaise / 100).toLocaleString('en-IN')}
+                </strong>
               </div>
+
               <div>
-                <small style={{ display: 'block', color: 'var(--muted)', fontSize: 11, font: '10px var(--mono)', textTransform: 'uppercase' }}>Seats</small>
-                <strong style={{ font: '16px var(--mono)', color: 'var(--paper)' }}>
-                  {booking.seats ? booking.seats.map(s => `${s.row}${s.number}`).join(', ') : 'Confirmed Seats'}
+                <small style={{ display: 'block', color: 'var(--muted)', fontSize: 10, font: '10px var(--mono)', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Attendee
+                </small>
+                <strong style={{ font: '14px var(--mono)', color: 'var(--paper)', fontWeight: 500 }}>
+                  {booking.customerName || 'Aarav Sharma'}
                 </strong>
               </div>
             </div>
           </div>
 
+          {/* Secure Gate Scan Ticket QR */}
           <div
             className="ticket-qr"
             style={{
               textAlign: 'center',
-              background: '#0e1012',
-              padding: 18,
-              border: '1px solid #2d3239',
-              borderRadius: 6,
+              background: '#0d0f11',
+              padding: 22,
+              border: '1px solid #332d29',
+              borderRadius: 8,
+              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.5)',
             }}
           >
-            <QRCodeDisplay value={verifyUrl} size={140} />
-            <Link
-              href={`/verify/${qrPayload}`}
-              className="no-print"
+            <QRCodeDisplay value={verifyUrl} size={135} />
+            <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
-                color: 'var(--peach)',
-                font: '11px var(--mono)',
-                textDecoration: 'underline',
-                marginTop: 8,
+                justifyContent: 'center',
+                gap: 5,
+                color: 'var(--green)',
+                font: '10px var(--mono)',
+                textTransform: 'uppercase',
+                marginTop: 12,
               }}
             >
-              Verify QR Ticket ↗
-            </Link>
+              <ShieldCheck size={13} /> Scan at Gate
+            </span>
             <small style={{ display: 'block', color: 'var(--muted)', font: '9px var(--mono)', marginTop: 4 }}>
               REF // {booking.bookingRef}
             </small>
           </div>
         </article>
 
-        <div className="confirmation-actions no-print" style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <Link href="/bookings" className="coral-button">
-            <Download size={16} /> View All My Bookings
+        {/* Action Buttons */}
+        <div className="confirmation-actions no-print" style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <Link href="/bookings" className="coral-button" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px' }}>
+            <Ticket size={16} /> View All My Bookings
           </Link>
           <button
             type="button"
             className="ghost-button"
             onClick={() => window.print()}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', cursor: 'pointer' }}
           >
             <Printer size={16} /> Print Ticket Receipt
           </button>
@@ -203,8 +273,8 @@ export default function ConfirmationPage() {
       fallback={
         <main className="confirmation-page">
           <PortalNav />
-          <section className="confirmation-wrap">
-            <p>Loading ticket…</p>
+          <section className="confirmation-wrap" style={{ padding: '80px 24px', textAlign: 'center' }}>
+            <p style={{ color: 'var(--muted)', font: '12px var(--mono)' }}>Loading your ticket pass…</p>
           </section>
         </main>
       }

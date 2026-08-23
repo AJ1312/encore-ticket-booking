@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ProfileMenu } from './profile-menu';
 import { CitySelector } from './city-selector';
 import { SearchNavButton } from './search-nav-button';
+import { NotificationBell } from './notification-bell';
 
 export function PortalNav({ portal = 'customer' }: { portal?: 'customer' | 'organiser' | 'admin' }) {
   if (portal !== 'customer') {
@@ -26,7 +27,10 @@ export function PortalNav({ portal = 'customer' }: { portal?: 'customer' | 'orga
             </>
           )}
         </nav>
-        <ProfileMenu />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <NotificationBell />
+          <ProfileMenu />
+        </div>
       </header>
     );
   }
@@ -42,8 +46,11 @@ export function PortalNav({ portal = 'customer' }: { portal?: 'customer' | 'orga
         <Link href="/events?kind=events">Live events</Link>
         <Link href="/events?kind=movies">Movies</Link>
       </nav>
-      <SearchNavButton />
-      <ProfileMenu />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+        <SearchNavButton />
+        <NotificationBell />
+        <ProfileMenu />
+      </div>
     </header>
   );
 }
