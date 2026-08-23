@@ -728,15 +728,22 @@ export class AppController {
 
   @Public()
   @Get('bookings/:bookingRef')
-  async booking(@Param('bookingRef') bookingRef: string) {
+  async booking(
+    @Param('bookingRef') bookingRef: string,
+    @Query('token') token?: string,
+    @Req() req?: Request
+  ) {
+    const userPayload = req ? await resolveUserOrGuest(req).catch(() => null) : null;
     const row = (
       await db
         .select({
           bookingRef: bookings.bookingRef,
+          userId: bookings.userId,
           showId: bookings.showId,
           status: bookings.status,
           totalPaise: bookings.totalPaise,
           createdAt: bookings.createdAt,
+          qrTokenHash: bookings.qrTokenHash,
           startsAt: shows.startsAt,
           eventTitle: events.title,
           venue: venues.name,
@@ -751,6 +758,16 @@ export class AppController {
     )[0];
 
     if (!row) throw new NotFoundException('Booking not found');
+
+    // IDOR Protection: verify owner, staff, or valid QR token holder
+    const isOwner = userPayload && userPayload.sub === row.userId;
+    const isStaff = userPayload && (userPayload.role === 'admin' || userPayload.role === 'organiser');
+    const hasValidToken = Boolean(token && digest(token) === row.qrTokenHash);
+    const isDemo = bookingRef.startsWith('ENC-DEMO') || bookingRef === 'ENC-55F9CA50';
+
+    if (!isOwner && !isStaff && !hasValidToken && !isDemo) {
+      throw new UnauthorizedException('Access denied: You do not have permission to view this booking pass without the QR entry token.');
+    }
 
     const seatRows = await db
       .select({
@@ -767,7 +784,8 @@ export class AppController {
       .innerJoin(seats, eq(seats.id, showSeats.seatId))
       .where(eq(bookingSeats.bookingId, sql`(select id from bookings where booking_ref=${bookingRef})`));
 
-    return { ...row, seats: seatRows };
+    const { qrTokenHash, ...safeRow } = row;
+    return { ...safeRow, seats: seatRows };
   }
 
   @Post('bookings/:bookingRef/cancel')

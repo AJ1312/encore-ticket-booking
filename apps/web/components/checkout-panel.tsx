@@ -71,19 +71,34 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
             const chosen = inventory.seats.filter(seat => seatIds.includes(seat.id));
             if (chosen.length > 0) setSeats(chosen);
           }
-          const hold = await apiJson<{ holdId: string; heldUntil?: string }>(`/shows/${event.showId}/hold`, {
-            method: 'POST',
-            body: JSON.stringify({ seatIds }),
-          }).catch(() => null);
-          if (hold && isMounted) {
-            setHoldId(hold.holdId);
-            if (hold.heldUntil) {
-              const diffSecs = Math.max(10, Math.floor((new Date(hold.heldUntil).getTime() - Date.now()) / 1000));
-              setHoldSeconds(diffSecs);
+
+          // Read holdId from URL search param if provided
+          const paramHoldId = params.get('holdId');
+          if (paramHoldId) {
+            setHoldId(paramHoldId);
+          } else {
+            // Attempt to create hold if not already passed
+            const hold = await apiJson<{ holdId: string; heldUntil?: string }>(`/shows/${event.showId}/hold`, {
+              method: 'POST',
+              body: JSON.stringify({ seatIds }),
+            }).catch(err => {
+              if (isMounted) {
+                setState('error');
+                setMessage(err instanceof Error ? `Hold Conflict: ${err.message}. Please return to the seat map to select available seats.` : 'These seats are currently held by another customer.');
+              }
+              return null;
+            });
+
+            if (hold && isMounted) {
+              setHoldId(hold.holdId);
+              if (hold.heldUntil) {
+                const diffSecs = Math.max(10, Math.floor((new Date(hold.heldUntil).getTime() - Date.now()) / 1000));
+                setHoldSeconds(diffSecs);
+              }
             }
           }
         }
-        if (isMounted) {
+        if (isMounted && state !== 'error') {
           if (!seats.length) {
             setSeats(
               seatIds.map((id, index) => ({
@@ -99,7 +114,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           setState('ready');
         }
       } catch {
-        if (isMounted) {
+        if (isMounted && state !== 'error') {
           setState('ready');
         }
       }
@@ -108,7 +123,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
     return () => {
       isMounted = false;
     };
-  }, [event.showId, seatIds]);
+  }, [event.showId, seatIds, params]);
 
   // 15-minute hold timer countdown
   useEffect(() => {
