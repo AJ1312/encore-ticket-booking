@@ -27,7 +27,7 @@ describe('Encore Core Business & Security Verification Suite', () => {
       expect(await argon2.verify(hash, 'WrongPassword123!')).toBe(false);
     });
 
-    it('issues valid 15-minute JWT access tokens with correct user role payload', () => {
+    it('issues valid 7-day JWT access tokens with correct user role payload', () => {
       const user = {
         id: randomUUID(),
         name: 'Aarav Sharma',
@@ -38,7 +38,7 @@ describe('Encore Core Business & Security Verification Suite', () => {
       const token = jwt.sign(
         { sub: user.id, name: user.name, email: user.email, role: user.role },
         JWT_SECRET,
-        { expiresIn: '15m' }
+        { expiresIn: '7d' }
       );
 
       const decoded = jwt.verify(token, JWT_SECRET) as any;
@@ -46,7 +46,7 @@ describe('Encore Core Business & Security Verification Suite', () => {
       expect(decoded.name).toBe(user.name);
       expect(decoded.email).toBe(user.email);
       expect(decoded.role).toBe('customer');
-      expect(decoded.exp - decoded.iat).toBe(15 * 60);
+      expect(decoded.exp - decoded.iat).toBe(7 * 24 * 60 * 60);
     });
 
     it('detects refresh token reuse and enforces token family revocation', () => {
