@@ -5,6 +5,7 @@ import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { encoreEvents, getEvent } from '@/lib/events';
 import { ShareButton } from '@/components/share-button';
+import { API_URL } from '@/lib/api';
 
 export function generateStaticParams() {
   return encoreEvents.map(event => ({ eventId: event.slug }));
@@ -12,8 +13,39 @@ export function generateStaticParams() {
 
 export default async function EventDetailPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
-  const event = getEvent(eventId);
-  if (!event || event.slug !== eventId) notFound();
+  
+  let event = getEvent(eventId);
+  let showId = event?.showId;
+
+  if (!event || event.slug !== eventId) {
+    try {
+      const res = await fetch(`${API_URL}/events`, { next: { revalidate: 60 } });
+      const data = await res.json();
+      const match = (data.events || []).find((e: any) => {
+        const slug = e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        return slug === eventId;
+      });
+
+      if (!match) notFound();
+
+      event = {
+        slug: eventId,
+        title: match.title,
+        venue: match.venue,
+        city: match.city,
+        date: new Date(match.startsAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
+        time: new Date(match.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        description: match.description || 'An intimate live set under the city lights.',
+        image: match.posterUrl || 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
+        kind: match.type === 'movie' ? 'Movies' : match.type === 'comedy' ? 'Comedy' : 'Events',
+        price: '₹999',
+        showId: match.showId,
+      } as any;
+      showId = match.showId;
+    } catch {
+      notFound();
+    }
+  }
 
   const isDining = event.kind === 'Dining';
 
@@ -74,7 +106,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ ev
               <small>{event.venue}</small>
             </div>
             <b>from {event.price}</b>
-            <Link href={`/shows/${event.slug}`} className="coral-button">
+            <Link href={`/shows/${encoreEvents.some(e => e.slug === event.slug) ? event.slug : showId}`} className="coral-button">
               {isDining ? (
                 <>
                   Reserve Table <ArrowUpRight size={16} />
@@ -89,7 +121,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ ev
 
           <div style={{ marginTop: 14 }}>
             <Link
-              href={`/shows/${event.slug}`}
+              href={`/shows/${encoreEvents.some(e => e.slug === event.slug) ? event.slug : showId}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
