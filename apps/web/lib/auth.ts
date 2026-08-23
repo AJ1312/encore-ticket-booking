@@ -13,7 +13,9 @@ export async function signIn(email: string, password: string): Promise<Session> 
   const data = (await r.json()) as { session: Session; accessToken?: string };
   if (data.accessToken && typeof window !== 'undefined') {
     window.localStorage.setItem('encore_token', data.accessToken);
-    document.cookie = `encore_access=${data.accessToken}; path=/; max-age=900; SameSite=Lax`;
+    window.localStorage.setItem('encore_profile', JSON.stringify(data.session));
+    document.cookie = `encore_access=${data.accessToken}; path=/; max-age=604800; SameSite=Lax`;
+    window.dispatchEvent(new CustomEvent('profile-updated', { detail: data.session }));
   }
   return data.session;
 }
@@ -29,7 +31,9 @@ export async function signUp(name: string, email: string, password: string): Pro
   const data = (await r.json()) as { session: Session; accessToken?: string };
   if (data.accessToken && typeof window !== 'undefined') {
     window.localStorage.setItem('encore_token', data.accessToken);
-    document.cookie = `encore_access=${data.accessToken}; path=/; max-age=900; SameSite=Lax`;
+    window.localStorage.setItem('encore_profile', JSON.stringify(data.session));
+    document.cookie = `encore_access=${data.accessToken}; path=/; max-age=604800; SameSite=Lax`;
+    window.dispatchEvent(new CustomEvent('profile-updated', { detail: data.session }));
   }
   return data.session;
 }

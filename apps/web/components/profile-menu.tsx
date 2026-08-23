@@ -3,13 +3,19 @@
 import Link from 'next/link';
 import { CircleUserRound, LogIn, Ticket, X, ShieldCheck, UserCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import type { Session } from '@encore/shared';
 import { apiJson } from '@/lib/api';
+import { signOut as authSignOut } from '@/lib/auth';
 
 export function ProfileMenu() {
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  const loginHref = pathname ? `/login?next=${encodeURIComponent(pathname)}` : '/login';
+  const registerHref = pathname ? `/register?next=${encodeURIComponent(pathname)}` : '/register';
 
   function syncProfile() {
     try {
@@ -65,20 +71,10 @@ export function ProfileMenu() {
     };
   }, []);
 
-  function signOut() {
-    try {
-      window.localStorage.removeItem('encore_profile');
-      window.localStorage.removeItem('encore_token');
-    } catch {
-      // ignore
-    }
-    void fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => null);
+  async function signOut() {
     setSession(null);
     setOpen(false);
-    window.dispatchEvent(new CustomEvent('profile-updated'));
+    await authSignOut();
   }
 
   return (
@@ -151,10 +147,10 @@ export function ProfileMenu() {
           ) : (
             <>
               <p className="profile-email">Sign in to keep tickets, holds, and your saved nights in one place.</p>
-              <Link href="/login" className="profile-action profile-primary" onClick={() => setOpen(false)}>
+              <Link href={loginHref} className="profile-action profile-primary" onClick={() => setOpen(false)}>
                 <LogIn size={16} /> Sign in <span>↗</span>
               </Link>
-              <Link href="/register" className="profile-action" onClick={() => setOpen(false)}>
+              <Link href={registerHref} className="profile-action" onClick={() => setOpen(false)}>
                 Create an account <span>↗</span>
               </Link>
             </>

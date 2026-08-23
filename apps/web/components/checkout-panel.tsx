@@ -8,6 +8,7 @@ import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 import { getEvent } from '@/lib/events';
 import { apiJson } from '@/lib/api';
+import { signIn, signUp } from '@/lib/auth';
 
 type Seat = { id: string; row: string; number: number; pricePaise: number; status: 'available' | 'held' | 'booked'; category?: string };
 
@@ -40,20 +41,49 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
   // 10-second simulated payment countdown
   const [paymentSeconds, setPaymentSeconds] = useState(10);
 
-  // Fetch logged in session
+  // Fetch logged in session & listen for global updates
   useEffect(() => {
     let isMounted = true;
-    apiJson<{ session: { id: string; name: string; email: string } }>('/auth/me')
-      .then(res => {
-        if (isMounted && res.session) {
-          setUser(res.session);
-          setAuthEmail(res.session.email);
-          setAuthName(res.session.name);
+    
+    function sync(sessionData?: any) {
+      if (!isMounted) return;
+      if (sessionData && sessionData.id) {
+        setUser(sessionData);
+        setAuthEmail(sessionData.email || '');
+        setAuthName(sessionData.name || '');
+      } else {
+        const stored = window.localStorage.getItem('encore_profile');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            setUser(parsed);
+            setAuthEmail(parsed.email || '');
+            setAuthName(parsed.name || '');
+            return;
+          } catch {}
         }
-      })
-      .catch(() => null);
+        apiJson<{ session: { id: string; name: string; email: string } }>('/auth/me')
+          .then(res => {
+            if (isMounted && res.session) {
+              setUser(res.session);
+              setAuthEmail(res.session.email);
+              setAuthName(res.session.name);
+            }
+          })
+          .catch(() => null);
+      }
+    }
+
+    sync();
+
+    const handleProfileUpdate = (e: any) => sync(e.detail);
+    window.addEventListener('profile-updated', handleProfileUpdate);
+    window.addEventListener('storage', () => sync());
+
     return () => {
       isMounted = false;
+      window.removeEventListener('profile-updated', handleProfileUpdate);
+      window.removeEventListener('storage', () => sync());
     };
   }, []);
 
@@ -180,35 +210,12 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
     setAuthSubmitting(true);
 
     try {
-      let activeUser: { id: string; name: string; email: string };
-      if (authMode === 'signin') {
-        const res = await apiJson<{ session?: { id: string; name: string; email: string }; user?: { id: string; name: string; email: string }; accessToken?: string }>('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({ email: authEmail, password: authPassword }),
-        });
-        activeUser = res.session || res.user || { id: 'usr-1', name: authEmail.split('@')[0], email: authEmail };
-        // Store token so subsequent API calls are authenticated
-        if (res.accessToken) {
-          window.localStorage.setItem('encore_token', res.accessToken);
-        }
-      } else {
-        const res = await apiJson<{ session?: { id: string; name: string; email: string }; user?: { id: string; name: string; email: string }; accessToken?: string }>('/auth/register', {
-          method: 'POST',
-          body: JSON.stringify({ name: authName || authEmail.split('@')[0], email: authEmail, password: authPassword }),
-        });
-        activeUser = res.session || res.user || { id: 'usr-1', name: authName || authEmail.split('@')[0], email: authEmail };
-        // Store token so subsequent API calls are authenticated
-        if (res.accessToken) {
-          window.localStorage.setItem('encore_token', res.accessToken);
-        }
-      }
+      const activeUser = authMode === 'signin'
+        ? await signIn(authEmail, authPassword)
+        : await signUp(authName || authEmail.split('@')[0], authEmail, authPassword);
+      
       setUser(activeUser);
-      try {
-        window.localStorage.setItem('encore_profile', JSON.stringify({ ...activeUser, role: 'customer' }));
-        window.dispatchEvent(new CustomEvent('profile-updated', { detail: activeUser }));
-      } catch {
-        // ignore
-      }
+      // Profile and token sync is now handled automatically by signIn/signUp
     } catch (err: any) {
       setAuthError(err.message || 'Invalid credentials or unable to sign in.');
     } finally {
