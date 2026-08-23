@@ -51,27 +51,13 @@ export default function VerificationPage({ params }: { params: Promise<{ token: 
           setSelectedSeats(res.seats.filter(s => !s.checkedInAt).map(s => s.seatId));
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (isMounted) {
-          // Fallback verified voucher for direct reference viewing
-          setData({
-            bookingRef: token.startsWith('ENC-') ? token : 'ENC-VERIFIED',
-            status: 'confirmed',
-            totalPaise: 299800,
-            createdAt: new Date().toISOString(),
-            startsAt: '2026-08-28T14:30:00.000Z',
-            eventTitle: 'The Night We Remember',
-            venue: 'Riverside Grounds',
-            address: 'Bandra West, Mumbai',
-            city: 'Mumbai',
-            customerName: 'Aarav Sharma',
-            customerEmail: 'customer@encore.local',
-            seats: [
-              { seatId: 's1', row: 'A', number: 1, section: 'Premium', category: 'Premium', pricePaise: 149900, checkedInAt: null },
-              { seatId: 's2', row: 'A', number: 2, section: 'Premium', category: 'Premium', pricePaise: 149900, checkedInAt: null },
-            ],
-          });
-          setSelectedSeats(['s1', 's2']);
+          if (!window.navigator.onLine || (err instanceof TypeError && err.message === 'Failed to fetch')) {
+            setError('Network connection lost. Please switch to the backup manual guest list or retry once online.');
+          } else {
+            setError('Verification failed. Invalid or unknown QR token.');
+          }
         }
       })
       .finally(() => {

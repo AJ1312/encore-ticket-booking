@@ -78,18 +78,18 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
   const diningTables: DiningTable[] = useMemo(() => {
     if (!isDining) return [];
     return [
-      { id: 't1', tableLabel: 'Table T1', capacity: 2, category: 'Table for 2', section: 'Window Booth', pricePaise: 180000, status: seats[0]?.status || 'available' },
-      { id: 't2', tableLabel: 'Table T2', capacity: 2, category: 'Table for 2', section: 'Window Booth', pricePaise: 180000, status: seats[1]?.status || 'available' },
-      { id: 't3', tableLabel: 'Table T3', capacity: 2, category: 'Table for 2', section: 'Garden Patio', pricePaise: 180000, status: seats[2]?.status || 'available' },
-      { id: 't4', tableLabel: 'Table T4', capacity: 2, category: 'Table for 2', section: 'Garden Patio', pricePaise: 180000, status: seats[3]?.status || 'available' },
-      { id: 't5', tableLabel: 'Table T5', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: 360000, status: seats[4]?.status || 'available' },
-      { id: 't6', tableLabel: 'Table T6', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: 360000, status: seats[5]?.status || 'available' },
-      { id: 't7', tableLabel: 'Table T7', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: 360000, status: seats[6]?.status || 'available' },
-      { id: 't8', tableLabel: 'Table T8', capacity: 4, category: 'Table for 4', section: 'Vinyl Lounge', pricePaise: 360000, status: seats[7]?.status || 'available' },
-      { id: 't9', tableLabel: 'Table T9', capacity: 4, category: 'Table for 4', section: 'Vinyl Lounge', pricePaise: 360000, status: seats[8]?.status || 'available' },
-      { id: 't10', tableLabel: 'Table T10', capacity: 6, category: 'Table for 6', section: 'Chef’s Banquette', pricePaise: 540000, status: seats[9]?.status || 'available' },
-      { id: 't11', tableLabel: 'Table T11', capacity: 6, category: 'Table for 6', section: 'Chef’s Banquette', pricePaise: 540000, status: seats[10]?.status || 'available' },
-      { id: 't12', tableLabel: 'Table T12', capacity: 6, category: 'Table for 6', section: 'Private Alcove', pricePaise: 540000, status: seats[11]?.status || 'available' },
+      { id: seats[0]?.id || 't1', tableLabel: 'Table T1', capacity: 2, category: 'Table for 2', section: 'Window Booth', pricePaise: seats[0]?.pricePaise || 180000, status: seats[0]?.status || 'available' },
+      { id: seats[1]?.id || 't2', tableLabel: 'Table T2', capacity: 2, category: 'Table for 2', section: 'Window Booth', pricePaise: seats[1]?.pricePaise || 180000, status: seats[1]?.status || 'available' },
+      { id: seats[2]?.id || 't3', tableLabel: 'Table T3', capacity: 2, category: 'Table for 2', section: 'Garden Patio', pricePaise: seats[2]?.pricePaise || 180000, status: seats[2]?.status || 'available' },
+      { id: seats[3]?.id || 't4', tableLabel: 'Table T4', capacity: 2, category: 'Table for 2', section: 'Garden Patio', pricePaise: seats[3]?.pricePaise || 180000, status: seats[3]?.status || 'available' },
+      { id: seats[4]?.id || 't5', tableLabel: 'Table T5', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: seats[4]?.pricePaise || 360000, status: seats[4]?.status || 'available' },
+      { id: seats[5]?.id || 't6', tableLabel: 'Table T6', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: seats[5]?.pricePaise || 360000, status: seats[5]?.status || 'available' },
+      { id: seats[6]?.id || 't7', tableLabel: 'Table T7', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: seats[6]?.pricePaise || 360000, status: seats[6]?.status || 'available' },
+      { id: seats[7]?.id || 't8', tableLabel: 'Table T8', capacity: 4, category: 'Table for 4', section: 'Vinyl Lounge', pricePaise: seats[7]?.pricePaise || 360000, status: seats[7]?.status || 'available' },
+      { id: seats[8]?.id || 't9', tableLabel: 'Table T9', capacity: 4, category: 'Table for 4', section: 'Vinyl Lounge', pricePaise: seats[8]?.pricePaise || 360000, status: seats[8]?.status || 'available' },
+      { id: seats[9]?.id || 't10', tableLabel: 'Table T10', capacity: 6, category: 'Table for 6', section: 'Chef’s Banquette', pricePaise: seats[9]?.pricePaise || 540000, status: seats[9]?.status || 'available' },
+      { id: seats[10]?.id || 't11', tableLabel: 'Table T11', capacity: 6, category: 'Table for 6', section: 'Chef’s Banquette', pricePaise: seats[10]?.pricePaise || 540000, status: seats[10]?.status || 'available' },
+      { id: seats[11]?.id || 't12', tableLabel: 'Table T12', capacity: 6, category: 'Table for 6', section: 'Private Alcove', pricePaise: seats[11]?.pricePaise || 540000, status: seats[11]?.status || 'available' },
     ];
   }, [isDining, seats]);
 
@@ -580,6 +580,8 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                       <button
                         key={table.id}
                         type="button"
+                        aria-label={`${table.tableLabel}, ${table.capacity} Diners, ${table.section} ${isHeldOrBooked ? '(Held/Sold - click for waitlist)' : ''}`}
+                        aria-pressed={isSelected}
                         onClick={() => toggle(table.id)}
                         style={{
                           background: tableBg,
@@ -684,6 +686,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
                           <button
                             key={seat.id}
                             aria-label={`Row ${seat.row}, seat ${seat.number} ${isHeldOrBooked ? '(Held/Sold - click for waitlist)' : ''}`}
+                            aria-pressed={isSelected}
                             onClick={() => toggle(seat.id)}
                             onMouseEnter={() => setHoveredSeat(seat)}
                             onMouseLeave={() => setHoveredSeat(null)}

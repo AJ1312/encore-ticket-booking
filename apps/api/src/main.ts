@@ -16,15 +16,18 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  ExceptionFilter,
+  HttpException,
 } from '@nestjs/common';
 import { APP_GUARD, Reflector } from '@nestjs/core';
 import { CanActivate, ExecutionContext, SetMetadata } from '@nestjs/common';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule, Throttle } from '@nestjs/throttler';
+import helmet from 'helmet';
 import * as argon2 from 'argon2';
 import * as jwt from 'jsonwebtoken';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
-import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, notInArray, isNull, or, sql } from 'drizzle-orm';
 import {
   confirmSchema,
   eventCreateSchema,
@@ -69,6 +72,22 @@ declare global {
   }
 }
 
+@Injectable()
+class GlobalExceptionFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ExecutionContext) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      response.status(status).json(exception.getResponse());
+    } else {
+      console.error('Unhandled Exception:', exception);
+      response.status(500).json({ statusCode: 500, message: 'Internal Server Error' });
+    }
+  }
+}
+
 export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 const ROLES_KEY = 'roles';
@@ -107,14 +126,28 @@ async function resolveUserOrGuest(req: Request): Promise<AccessPayload> {
   if (req.user) return req.user;
 
   const defaultGuestId = '00000000-0000-4000-8000-000000000001';
+  const defaultCustomerId = '00000000-0000-4000-8000-000000000002';
   try {
-    await db.insert(users).values({
-      id: defaultGuestId,
-      name: 'Encore Guest',
-      email: 'guest@encore.local',
-      passwordHash: await argon2.hash('SeedPassword123!'),
-      role: 'customer',
-    }).onConflictDoNothing();
+    const existingGuest = await db.select({ id: users.id }).from(users).where(eq(users.id, defaultGuestId)).limit(1);
+    if (!existingGuest.length) {
+      const password = await argon2.hash('SeedPassword123!');
+      await db.insert(users).values([
+        {
+          id: defaultGuestId,
+          name: 'Encore Guest',
+          email: 'guest@encore.local',
+          passwordHash: password,
+          role: 'customer',
+        },
+        {
+          id: defaultCustomerId,
+          name: 'Encore Customer',
+          email: 'customer@encore.local',
+          passwordHash: password,
+          role: 'customer',
+        }
+      ]).onConflictDoNothing();
+    }
   } catch {
     // ignore
   }
@@ -152,12 +185,17 @@ async function ensureShowSeats(showId: string) {
   try {
     const defaultOrganiserId = '22222222-2222-4222-8222-222222222222';
     const defaultAdminId = '11111111-1111-4111-8111-111111111111';
+    const defaultCustomerId = '00000000-0000-4000-8000-000000000002';
 
-    const password = await argon2.hash('SeedPassword123!');
-    await db.insert(users).values([
-      { id: defaultAdminId, name: 'Encore Admin', email: 'admin@encore.local', passwordHash: password, role: 'admin' },
-      { id: defaultOrganiserId, name: 'Encore Organiser', email: 'organiser@encore.local', passwordHash: password, role: 'organiser' },
-    ]).onConflictDoNothing();
+    const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.id, defaultAdminId)).limit(1);
+    if (!existingAdmin.length) {
+      const password = await argon2.hash('SeedPassword123!');
+      await db.insert(users).values([
+        { id: defaultAdminId, name: 'Encore Admin', email: 'admin@encore.local', passwordHash: password, role: 'admin' },
+        { id: defaultOrganiserId, name: 'Encore Organiser', email: 'organiser@encore.local', passwordHash: password, role: 'organiser' },
+        { id: defaultCustomerId, name: 'Encore Customer', email: 'customer@encore.local', passwordHash: password, role: 'customer' },
+      ]).onConflictDoNothing();
+    }
 
     // Multi-city show mapping table
     const cityShows: Record<string, { venueId: string; venueName: string; city: string; eventId: string; eventTitle: string; posterUrl: string }> = {
@@ -312,7 +350,8 @@ export class AppController {
       })
       .from(events)
       .innerJoin(shows, eq(shows.eventId, events.id))
-      .innerJoin(venues, eq(venues.id, shows.venueId));
+      .innerJoin(venues, eq(venues.id, shows.venueId))
+      .limit(200);
     return { events: rows };
   }
 
@@ -599,6 +638,7 @@ export class AppController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('auth/login')
   async login(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
     const input = loginSchema.safeParse(body);
@@ -611,6 +651,7 @@ export class AppController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('auth/forgot-password')
   async forgotPassword(@Body() body: unknown) {
     const input = passwordResetRequestSchema.safeParse(body);
@@ -630,6 +671,7 @@ export class AppController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('auth/reset-password')
   async resetPassword(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
     const input = passwordResetSchema.safeParse(body);
@@ -690,6 +732,15 @@ export class AppController {
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const raw = req.cookies?.encore_refresh;
     if (raw) await db.update(refreshTokens).set({ revokedAt: new Date() }).where(eq(refreshTokens.tokenHash, digest(raw)));
+    res.clearCookie('encore_access', { path: '/' });
+    res.clearCookie('encore_refresh', { path: '/' });
+    return { ok: true };
+  }
+
+  @Post('auth/logout-all')
+  async logoutAll(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const u = auth(req);
+    await db.update(refreshTokens).set({ revokedAt: new Date() }).where(eq(refreshTokens.userId, u.sub));
     res.clearCookie('encore_access', { path: '/' });
     res.clearCookie('encore_refresh', { path: '/' });
     return { ok: true };
@@ -762,7 +813,14 @@ export class AppController {
     // IDOR Protection: verify owner, staff, or valid QR token holder
     const isOwner = userPayload && userPayload.sub === row.userId;
     const isStaff = userPayload && (userPayload.role === 'admin' || userPayload.role === 'organiser');
-    const hasValidToken = Boolean(token && digest(token) === row.qrTokenHash);
+    let hasValidToken = false;
+    if (token && row.qrTokenHash) {
+      try {
+        const a = Buffer.from(digest(token));
+        const b = Buffer.from(row.qrTokenHash);
+        hasValidToken = a.length === b.length && timingSafeEqual(a, b);
+      } catch {}
+    }
     const isDemo = bookingRef.startsWith('ENC-DEMO') || bookingRef === 'ENC-55F9CA50';
 
     if (!isOwner && !isStaff && !hasValidToken && !isDemo) {
@@ -810,7 +868,7 @@ export class AppController {
       if (seatsToRelease.length) {
         await tx
           .update(showSeats)
-          .set({ status: 'available', version: sql`${showSeats.version}+1` })
+          .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
           .where(and(inArray(showSeats.id, seatsToRelease.map(s => s.showSeatId)), eq(showSeats.status, 'booked')));
       }
 
@@ -905,7 +963,8 @@ export class AppController {
   // ── Shows: seats & hold ──────────────────────────────────────────────────────
   @Public()
   @Get('shows/:showId/seats')
-  async showSeats(@Param('showId') showId: string) {
+  async showSeats(@Param('showId') showId: string, @Req() req: Request) {
+    const u = await resolveUserOrGuest(req);
     let result = await db
       .select({
         id: showSeats.id,
@@ -914,7 +973,10 @@ export class AppController {
         category: seats.category,
         section: seats.section,
         pricePaise: sql<number>`coalesce(${showSeats.heldPricePaise},${seats.pricePaise})`,
-        status: sql<string>`case when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' else ${showSeats.status} end`,
+        status: sql<string>`case 
+          when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' 
+          when ${showSeats.status}='held' and ${showSeats.heldByUserId}=${u.sub} then 'available'
+          else ${showSeats.status} end`,
       })
       .from(showSeats)
       .innerJoin(seats, eq(showSeats.seatId, seats.id))
@@ -930,7 +992,10 @@ export class AppController {
           category: seats.category,
           section: seats.section,
           pricePaise: sql<number>`coalesce(${showSeats.heldPricePaise},${seats.pricePaise})`,
-          status: sql<string>`case when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' else ${showSeats.status} end`,
+          status: sql<string>`case 
+            when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' 
+            when ${showSeats.status}='held' and ${showSeats.heldByUserId}=${u.sub} then 'available'
+            else ${showSeats.status} end`,
         })
         .from(showSeats)
         .innerJoin(seats, eq(showSeats.seatId, seats.id))
@@ -945,6 +1010,20 @@ export class AppController {
     const u = await resolveUserOrGuest(req);
     const input = holdSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Select one to eight seats');
+
+    const activeHolds = await db.select({ count: sql<number>`count(*)` })
+      .from(showSeats)
+      .where(and(
+        eq(showSeats.showId, showId),
+        eq(showSeats.heldByUserId, u.sub), 
+        eq(showSeats.status, 'held'), 
+        gt(showSeats.heldUntil, new Date()),
+        notInArray(showSeats.id, input.data.seatIds)
+      ));
+
+    if (Number(activeHolds[0].count) + input.data.seatIds.length > 8) {
+      throw new ConflictException('You can only hold up to 8 seats at a time for this show');
+    }
 
     const ttl = Number(process.env.SEAT_HOLD_TTL_SECONDS || 900);
     const heldUntil = new Date(Date.now() + ttl * 1000);
@@ -970,7 +1049,7 @@ export class AppController {
             and(
               eq(showSeats.id, seatId),
               eq(showSeats.showId, showId),
-              sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND ${showSeats.heldUntil}<=now()))`
+              sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND (${showSeats.heldUntil}<=now() OR ${showSeats.heldByUserId}=${u.sub})))`
             )
           )
           .returning({ id: showSeats.id });
@@ -993,25 +1072,26 @@ export class AppController {
   // ── Release seat hold ───────────────────────────────────────────────────────
   @Public()
   @Post('shows/:showId/release-hold')
-  async releaseHold(@Param('showId') showId: string, @Body() body: unknown) {
+  async releaseHold(@Param('showId') showId: string, @Body() body: unknown, @Req() req: Request) {
+    const u = await resolveUserOrGuest(req);
     const { seatIds, holdId } = (body || {}) as { seatIds?: string[]; holdId?: string };
     if (Array.isArray(seatIds) && seatIds.length) {
       await db
         .update(showSeats)
         .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
-        .where(and(inArray(showSeats.id, seatIds), eq(showSeats.showId, showId), eq(showSeats.status, 'held')));
+        .where(and(inArray(showSeats.id, seatIds), eq(showSeats.showId, showId), eq(showSeats.status, 'held'), eq(showSeats.heldByUserId, u.sub)));
     } else if (holdId) {
-      const hold = (await db.select().from(holds).where(eq(holds.id, holdId)).limit(1))[0];
+      const hold = (await db.select().from(holds).where(and(eq(holds.id, holdId), eq(holds.userId, u.sub))).limit(1))[0];
       if (hold && Array.isArray(hold.seatIds) && hold.seatIds.length) {
         await db
           .update(showSeats)
           .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
-          .where(and(inArray(showSeats.id, hold.seatIds as string[]), eq(showSeats.showId, showId), eq(showSeats.status, 'held')));
+          .where(and(inArray(showSeats.id, hold.seatIds as string[]), eq(showSeats.showId, showId), eq(showSeats.status, 'held'), eq(showSeats.heldByUserId, u.sub)));
         await db.update(holds).set({ status: 'expired' }).where(eq(holds.id, holdId));
       }
     }
     this.realtime.emitSeatUpdate(showId);
-    return { success: true };
+    return { ok: true };
   }
 
   // ── Reset all seats across all shows ─────────────────────────────────────────
@@ -1354,9 +1434,8 @@ export class AppController {
   // ── Admin: Bookings, Users, Jobs & Venues ─────────────────────────────────────
   @Roles('admin')
   @Get('admin/bookings')
-  async adminBookings(@Query('page') page = '1') {
-    const limit = 50;
-    const offset = (Number(page) - 1) * limit;
+  async adminBookings(@Query('page') page: string) {
+    const offset = Math.max(0, (Number(page) || 1) - 1) * 50;
     const rows = await db
       .select({
         bookingRef: bookings.bookingRef,
@@ -1374,7 +1453,7 @@ export class AppController {
       .innerJoin(events, eq(events.id, shows.eventId))
       .innerJoin(venues, eq(venues.id, shows.venueId))
       .orderBy(desc(bookings.createdAt))
-      .limit(limit)
+      .limit(50)
       .offset(offset);
     return { bookings: rows };
   }
@@ -1385,7 +1464,8 @@ export class AppController {
     const rows = await db
       .select({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt })
       .from(users)
-      .orderBy(desc(users.createdAt));
+      .orderBy(desc(users.createdAt))
+      .limit(200);
     return { users: rows };
   }
 
@@ -1551,22 +1631,30 @@ async function bootstrap() {
     throw new Error('DATABASE_URL and a 32+ character JWT_ACCESS_SECRET are required in production');
   }
   const app = await NestFactory.create(AppModule);
+  app.use(helmet());
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin) return callback(null, true);
+      
+      const allowedOrigins = [
+        process.env.FRONTEND_URL,
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
+      ].filter(Boolean);
+      
       if (
-        !origin ||
-        origin.includes('vercel.app') ||
-        origin.includes('localhost') ||
-        origin.includes('127.0.0.1') ||
-        origin === process.env.FRONTEND_URL
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app')
       ) {
         callback(null, true);
       } else {
-        callback(null, true);
+        callback(new Error('Not allowed by CORS'));
       }
     },
     credentials: true,
   });
+  
+  app.useGlobalFilters(new GlobalExceptionFilter());
   app.use(require('cookie-parser')());
   await app.listen(Number(process.env.PORT) || 4000, '0.0.0.0');
   await db.insert(jobs).values({ type: 'release_expired_holds', payload: {} });
