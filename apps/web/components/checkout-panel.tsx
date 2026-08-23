@@ -630,24 +630,6 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
                   Booking locks automatically in {paymentSeconds} seconds.
                 </small>
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                  <button
-                    type="button"
-                    onClick={() => void executeConfirmation()}
-                    className="coral-button"
-                    style={{ flex: 1, padding: '10px 14px', fontSize: 12 }}
-                  >
-                    Pay Now ↗
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelAndRelease}
-                    className="ghost-button"
-                    style={{ flex: 1, padding: '10px 14px', fontSize: 12 }}
-                  >
-                    Cancel
-                  </button>
-                </div>
               </div>
             ) : (
               <button
