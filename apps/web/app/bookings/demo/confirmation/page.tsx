@@ -30,17 +30,14 @@ function ConfirmationContent() {
     seats?: Array<{ row: string; number: number; category?: string }>;
   }>({
     bookingRef: ref,
-    totalPaise: 299800,
+    totalPaise: 0,
     eventTitle: fallbackEvent ? fallbackEvent.title : 'Loading event details...',
     venue: fallbackEvent ? fallbackEvent.venue : 'Loading venue...',
     city: fallbackEvent ? fallbackEvent.city : '',
-    startsAt: fallbackEvent ? undefined : '2026-08-28T14:30:00.000Z',
-    customerName: 'Aarav Sharma',
+    startsAt: fallbackEvent ? undefined : undefined,
+    customerName: 'Loading attendee...',
     qrToken: rawToken || undefined,
-    seats: [
-      { row: 'A', number: 1, category: 'Premium' },
-      { row: 'A', number: 2, category: 'Premium' },
-    ],
+    seats: [],
   });
 
   useEffect(() => {
@@ -208,7 +205,7 @@ function ConfirmationContent() {
                   Attendee
                 </small>
                 <strong style={{ font: '14px var(--mono)', color: 'var(--paper)', fontWeight: 500 }}>
-                  {booking.customerName || 'Aarav Sharma'}
+                  {booking.customerName}
                 </strong>
               </div>
             </div>

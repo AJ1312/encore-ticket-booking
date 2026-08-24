@@ -112,7 +112,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               Name
               <input
                 required
-                placeholder="Aarav Sharma"
+                placeholder="John Doe"
                 value={form.name}
                 onChange={event => setForm({ ...form, name: event.target.value })}
               />

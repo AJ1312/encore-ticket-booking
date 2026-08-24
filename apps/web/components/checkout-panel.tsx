@@ -461,7 +461,7 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
                         required
                         value={authName}
                         onChange={e => setAuthName(e.target.value)}
-                        placeholder="Aarav Sharma"
+                        placeholder="John Doe"
                         style={{
                           width: '100%',
                           padding: 12,

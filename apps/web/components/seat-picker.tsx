@@ -868,7 +868,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                   </label>
                   <input
                     required
-                    placeholder="Aarav Sharma"
+                    placeholder="John Doe"
                     value={authName}
                     onChange={e => setAuthName(e.target.value)}
                     style={{ width: '100%', padding: 10, background: '#111416', border: '1px solid #433832', color: 'var(--paper)', borderRadius: 4 }}
