@@ -16,13 +16,25 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
   const params = useSearchParams();
   const router = useRouter();
   const showIdQuery = params.get('showId');
-  const effectiveEventId = eventId || showIdQuery || 'the-night-we-remember';
-  const staticEvent = getEvent(effectiveEventId);
+  const effectiveEventId = eventId || showIdQuery || '';
+  const staticEvent = effectiveEventId ? getEvent(effectiveEventId) : undefined;
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveEventId);
   const showId = isUUID ? effectiveEventId : (showIdQuery || staticEvent?.showId);
   const seatIds = useMemo(() => (params.get('seats') || '').split(',').filter(Boolean), [params]);
 
-  const [eventMeta, setEventMeta] = useState<any>(staticEvent || { title: 'Loading...', venue: 'Loading...', city: '', date: '', time: '' });
+  const [eventMeta, setEventMeta] = useState<any>(() => {
+    if (staticEvent) {
+      return {
+        title: staticEvent.title,
+        venue: staticEvent.venue,
+        city: staticEvent.city,
+        date: staticEvent.date,
+        time: staticEvent.time,
+        kind: staticEvent.kind || 'Events',
+      };
+    }
+    return { title: 'Loading...', venue: 'Loading...', city: '', date: '', time: '' };
+  });
   const [seats, setSeats] = useState<Seat[]>([]);
   const [holdId, setHoldId] = useState<string>();
   const [state, setState] = useState<'loading' | 'ready' | 'paying' | 'error' | 'confirmed'>('loading');
@@ -107,13 +119,13 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
             if (chosen.length > 0) setSeats(chosen);
             if (inventory.meta) {
               setEventMeta({
-                ...staticEvent,
                 title: inventory.meta.title,
                 venue: inventory.meta.venue,
                 city: inventory.meta.city,
-                date: inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : staticEvent?.date,
-                time: inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : staticEvent?.time,
-              } as any);
+                date: inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : (staticEvent?.date || ''),
+                time: inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : (staticEvent?.time || ''),
+                kind: inventory.meta.type || staticEvent?.kind || 'Events',
+              });
             }
           } else if (isUUID) {
             // User requested: if issue fetching with backend, resolve with loading screen forever

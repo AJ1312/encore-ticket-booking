@@ -14,7 +14,7 @@ export default function WaitlistOfferPage({ params }: { params: Promise<{ entryI
   const [seconds, setSeconds] = useState(900); // 15-minute countdown
   const [claimed, setClaimed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [entry, setEntry] = useState<{ showId: string; offeredSeatIds: string[] } | null>(null);
+  const [entry, setEntry] = useState<{ showId: string; offeredSeatIds: string[]; eventTitle?: string; venue?: string; category?: string } | null>(null);
 
   useEffect(() => {
     apiJson<{ waitlist: any[] }>(`/waitlist/${entryId}`)
@@ -90,8 +90,8 @@ export default function WaitlistOfferPage({ params }: { params: Promise<{ entryI
             </div>
           </div>
 
-          <h2>The Night We Remember</h2>
-          <p>Premium · Riverside Grounds · 28 Aug 2026</p>
+          <h2>{entry?.eventTitle || 'Your Event Pass'}</h2>
+          <p>{entry?.category || 'Reserved'} · {entry?.venue || 'Venue'}</p>
 
           <div className="hold-note" style={{ margin: '20px 0' }}>
             <Clock3 size={15} /> Claim now before your 15-minute offer expires and moves to the next user.

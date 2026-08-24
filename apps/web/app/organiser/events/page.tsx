@@ -67,17 +67,7 @@ export default function OrganiserEventsPage() {
               </div>
             ))
           ) : (
-            <div className="event-table-row">
-              <span>01</span>
-              <div>
-                <strong>The Night We Remember</strong>
-                <small>28 Aug · Riverside Grounds</small>
-              </div>
-              <b>On sale</b>
-              <Link href="/organiser/events/44444444-4444-4444-8444-444444444444">
-                <ArrowUpRight size={16} />
-              </Link>
-            </div>
+            <p style={{ padding: 20, color: 'var(--muted)' }}>No events on sale yet.</p>
           )}
         </div>
         <Link href="/organiser" className="portal-link">

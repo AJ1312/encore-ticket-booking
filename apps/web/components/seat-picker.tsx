@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X, Users, Utensils, LogIn, KeyRound, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, startTransition } from 'react';
 import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 import { getEvent } from '@/lib/events';
@@ -31,7 +31,19 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
   const showId = isUUID ? eventId : staticEvent?.showId;
 
-  const [eventMeta, setEventMeta] = useState<any>(staticEvent || { title: 'Loading...', venue: 'Loading...', city: '', date: '', time: '', kind: 'Events' });
+  const [eventMeta, setEventMeta] = useState<any>(() => {
+    if (staticEvent) {
+      return {
+        title: staticEvent.title,
+        venue: staticEvent.venue,
+        city: staticEvent.city,
+        date: staticEvent.date,
+        time: staticEvent.time,
+        kind: staticEvent.kind || 'Events',
+      };
+    }
+    return { title: 'Loading...', venue: 'Loading...', city: '', date: '', time: '', kind: 'Events' };
+  });
   const isDining = eventMeta?.kind === 'Dining';
 
   const [seats, setSeats] = useState<Seat[]>([]);
@@ -120,27 +132,29 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   }, [isDining, selected, diningTables]);
 
   function loadSeats() {
-    if (!showId) return;
+    if (!showId) {
+      setLoading(false);
+      return;
+    }
     apiJson<{ seats: Seat[]; meta?: any }>(`/shows/${showId}/seats`)
       .then(result => {
-        setSeats(result.seats || []);
-        if (result.meta) {
-          setEventMeta({
-            ...staticEvent,
-            title: result.meta.title,
-            venue: result.meta.venue,
-            city: result.meta.city,
-            date: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : staticEvent?.date,
-            time: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : staticEvent?.time,
-            kind: result.meta.type || staticEvent?.kind || 'Events',
-          } as any);
-        }
-        setLoading(false);
+        startTransition(() => {
+          setSeats(result.seats || []);
+          if (result.meta) {
+            setEventMeta({
+              title: result.meta.title,
+              venue: result.meta.venue,
+              city: result.meta.city,
+              date: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : (staticEvent?.date || ''),
+              time: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : (staticEvent?.time || ''),
+              kind: result.meta.type || staticEvent?.kind || 'Events',
+            });
+          }
+          setLoading(false);
+        });
       })
       .catch(() => {
-        if (!isUUID) {
-          setLoading(false);
-        }
+        setLoading(false);
       });
   }
 

@@ -27,15 +27,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         if (isMounted) setEvent(data);
       })
       .catch(() => {
-        if (isMounted) {
-          setEvent({
-            id,
-            title: 'The Night We Remember',
-            description: 'An intimate live set under the city lights.',
-            type: 'concert',
-            posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
-          });
-        }
+        // Ignore or handle
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -61,7 +53,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         <div className="admin-cards">
           <section className="portal-panel">
             <span className="eyebrow">Event details</span>
-            <h2>{event?.title || 'The Night We Remember'}</h2>
+            <h2>{event?.title || 'Event Details'}</h2>
             <p>{event?.description || 'Open-air live set.'}</p>
             <div style={{ marginTop: 12, fontSize: 12, color: '#68796b' }}>
               Type: {event?.type}

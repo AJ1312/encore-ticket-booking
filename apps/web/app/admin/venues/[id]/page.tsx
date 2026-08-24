@@ -65,9 +65,9 @@ export default function VenuePage({ params }: { params: Promise<{ id: string }> 
         <div className="admin-cards">
           <section className="portal-panel">
             <span className="eyebrow">Venue details</span>
-            <h2>{venue?.name || 'Riverside Grounds'}</h2>
+            <h2>{venue?.name || 'Venue'}</h2>
             <p>
-              {venue?.city || 'Mumbai'} · {venue?.address || 'Bandra West'} · {venue?.timezone || 'Asia/Kolkata'} · {venue?.seats?.length || 72} seat inventory
+              {venue?.city || ''} · {venue?.address || ''} · {venue?.timezone || 'Asia/Kolkata'} · {venue?.seats?.length || 0} seat inventory
             </p>
             <Link href={`/admin/venues/${id}/layout`}>
               Open layout builder <ArrowUpRight size={15} />
@@ -76,8 +76,8 @@ export default function VenuePage({ params }: { params: Promise<{ id: string }> 
 
           <section className="portal-panel">
             <span className="eyebrow">Upcoming shows</span>
-            <h2>{venue?.shows?.length ? `0${venue.shows.length} shows scheduled` : '01 on sale'}</h2>
-            <p>The Night We Remember · 28 Aug 2026</p>
+            <h2>{venue?.shows?.length ? `0${venue.shows.length} shows scheduled` : 'No upcoming shows'}</h2>
+            {venue?.shows?.map((s: any) => <p key={s.id}>{s.title} · {new Date(s.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>)}
             <Link href="/organiser/events">
               View programme <ArrowUpRight size={15} />
             </Link>

@@ -145,17 +145,7 @@ export default function OrganiserPage() {
               </div>
             ))
           ) : (
-            <div className="programme-row">
-              <span>01</span>
-              <div>
-                <b>The Night We Remember</b>
-                <div style={{ fontSize: 11, color: '#68796b' }}>Concert · Riverside Grounds</div>
-              </div>
-              <small>68% occupancy</small>
-              <Link href="/organiser/events/44444444-4444-4444-8444-444444444444" style={{ color: '#3a7750' }}>
-                Manage <ArrowUpRight size={14} />
-              </Link>
-            </div>
+            <p style={{ padding: '0 24px 24px', color: 'var(--muted)' }}>No events on sale yet.</p>
           )}
         </section>
         <Link href="/organiser/events" className="portal-link">View all programme events <ArrowUpRight size={15} /></Link>

@@ -1112,7 +1112,7 @@ export class AppController {
       .where(eq(shows.id, showId))
       .limit(1);
 
-    const meta = showMeta[0] || null;
+    let meta = showMeta[0] || null;
 
     let result = await db
       .select({
@@ -1149,6 +1149,25 @@ export class AppController {
         .from(showSeats)
         .innerJoin(seats, eq(showSeats.seatId, seats.id))
         .where(eq(showSeats.showId, showId));
+
+      if (!meta) {
+        const refetchedMeta = await db
+          .select({
+            title: events.title,
+            description: events.description,
+            type: events.type,
+            posterUrl: events.posterUrl,
+            startsAt: shows.startsAt,
+            venue: venues.name,
+            city: venues.city,
+          })
+          .from(shows)
+          .innerJoin(events, eq(events.id, shows.eventId))
+          .innerJoin(venues, eq(venues.id, shows.venueId))
+          .where(eq(shows.id, showId))
+          .limit(1);
+        meta = refetchedMeta[0] || null;
+      }
     }
     return { seats: result, meta: meta };
   }

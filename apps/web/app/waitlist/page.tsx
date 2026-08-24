@@ -53,8 +53,8 @@ export default function WaitlistPage() {
               <span className="ticket-status">
                 {item.status === 'offered' ? '🔥 Active 15-Min Offer Ready' : `Watching · ${item.category}`}
               </span>
-              <h2>{item.eventTitle || 'The Night We Remember'}</h2>
-              <p>{item.venue || 'Riverside Grounds'} · {item.category} seats</p>
+              <h2>{item.eventTitle || 'Event Pass'}</h2>
+              <p>{item.venue || 'Venue'} · {item.category} seats</p>
 
               <div className="hold-note">
                 <Clock3 size={15} />
