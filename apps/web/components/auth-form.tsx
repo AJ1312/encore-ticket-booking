@@ -10,7 +10,7 @@ function destination(role: string) {
   return role === 'admin' ? '/admin' : role === 'organiser' ? '/organiser' : '/events';
 }
 
-export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
+export function AuthForm({ mode, redirectUrl }: { mode: 'login' | 'register', redirectUrl?: string }) {
   const [next, setNext] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
@@ -36,7 +36,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       if (typeof window !== 'undefined') {
         window.localStorage.setItem('encore_profile', JSON.stringify(session));
       }
-      window.location.href = next || destination(session.role);
+      window.location.href = redirectUrl || next || destination(session.role);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to continue');
     } finally {

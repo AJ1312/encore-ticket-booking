@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X, Users, Utensils, LogIn, KeyRound, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, startTransition } from 'react';
 import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 import { getEvent } from '@/lib/events';
@@ -123,19 +123,21 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     if (!showId) return;
     apiJson<{ seats: Seat[]; meta?: any }>(`/shows/${showId}/seats`)
       .then(result => {
-        setSeats(result.seats || []);
-        if (result.meta) {
-          setEventMeta({
-            ...staticEvent,
-            title: result.meta.title,
-            venue: result.meta.venue,
-            city: result.meta.city,
-            date: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : staticEvent?.date,
-            time: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : staticEvent?.time,
-            kind: result.meta.type || staticEvent?.kind || 'Events',
-          } as any);
-        }
-        setLoading(false);
+        startTransition(() => {
+          setSeats(result.seats || []);
+          if (result.meta) {
+            setEventMeta({
+              ...staticEvent,
+              title: result.meta.title,
+              venue: result.meta.venue,
+              city: result.meta.city,
+              date: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : staticEvent?.date,
+              time: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : staticEvent?.time,
+              kind: result.meta.type || staticEvent?.kind || 'Events',
+            } as any);
+          }
+          setLoading(false);
+        });
       })
       .catch(() => {
         if (!isUUID) {
@@ -178,6 +180,13 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     }, 1000);
     return () => clearInterval(pollTimer);
   }, [showId]);
+
+  // Prefetch checkout page as soon as a seat is selected to ensure instant transition
+  useEffect(() => {
+    if (selected.length > 0 && showId) {
+      router.prefetch(`/shows/${showId}/checkout`);
+    }
+  }, [selected, showId, router]);
 
   // Real-time WebSocket listener
   useEffect(() => {
@@ -231,17 +240,20 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   async function submitWaitlist(e: React.FormEvent) {
     e.preventDefault();
     setWaitlistLoading(true);
+    setWaitlistError('');
     try {
-      await apiJson('/waitlist', {
+      const res = await apiJson<{ error?: string }>('/waitlist', {
         method: 'POST',
         body: JSON.stringify({
           showId,
           category: waitlistCategory,
+          email: waitlistEmail,
         }),
-      }).catch(() => null);
+      });
+      if (res?.error) throw new Error(res.error);
       setWaitlistSuccess(true);
-    } catch {
-      setWaitlistSuccess(true);
+    } catch (err: any) {
+      setWaitlistError(err.message || 'Failed to join waitlist. Please try again.');
     } finally {
       setWaitlistLoading(false);
     }
@@ -984,7 +996,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                 </div>
                 <h3 style={{ font: '28px var(--serif)', color: 'var(--paper)', margin: '0 0 8px' }}>Notification Active</h3>
                 <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
-                  If a reservation is cancelled for <strong>{waitlistCategory}</strong>, you will receive an offer in the first batch of 5 users with an exclusive 15-minute priority booking window.
+                  If a reservation is cancelled for <strong>{waitlistCategory}</strong>, you will receive an immediate notification email. Seats are offered on a first-come, first-served basis!
                 </p>
                 <button
                   className="coral-button"
@@ -1001,7 +1013,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                   Get Notified When {isDining ? 'Tables' : 'Seats'} Open
                 </h3>
                 <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
-                  When someone cancels or a hold expires, Encore sends notifications in <strong>priority batches of 5 users</strong> with a <strong>15-minute exclusive booking window</strong>.
+                  When someone cancels or a hold expires, Encore sends notifications <strong>immediately</strong> to waitlisted users. Seats are offered on a first-come, first-served basis.
                 </p>
 
                 <div style={{ marginBottom: 16 }}>
@@ -1057,13 +1069,18 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                   />
                 </div>
 
+                {waitlistError && (
+                  <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '4px', fontSize: '13px', marginBottom: '16px' }}>
+                    {waitlistError}
+                  </div>
+                )}
                 <button
                   type="submit"
                   disabled={waitlistLoading}
                   className="coral-button"
                   style={{ width: '100%' }}
                 >
-                  {waitlistLoading ? 'Registering…' : 'Notify Me In Next Batch of 5 →'}
+                  {waitlistLoading ? 'Registering…' : 'Notify Me When Available →'}
                 </button>
               </form>
             )}

@@ -50,10 +50,10 @@ export default function TermsPage() {
               <Bell size={14} /> Fairness Waitlist Dispatcher
             </span>
             <h2 style={{ font: '26px var(--serif)', color: 'var(--paper)', margin: '10px 0 12px' }}>
-              Batched 5-User Priority Offers
+              Real-Time Notifications
             </h2>
             <p style={{ color: '#c0b6af', fontSize: 14, lineHeight: 1.65 }}>
-              When a sold-out show receives a seat release, Encore sends notifications in <strong>priority batches of 5 users</strong> in FIFO order. Each batch receives an exclusive <strong>15-minute claim window</strong> to complete their reservation before the system automatically cascades the offer to the subsequent 5 users.
+              When a sold-out show receives a seat release, Encore sends notifications <strong>immediately</strong> to waitlisted users. Seats are offered on a first-come, first-served basis, creating a fair environment for securing tickets.
             </p>
           </div>
 

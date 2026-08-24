@@ -39,6 +39,7 @@ function ConfirmationContent() {
     qrToken: rawToken || undefined,
     seats: [],
   });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (ref && ref !== 'demo') {
@@ -55,15 +56,19 @@ function ConfirmationContent() {
       }>(`/bookings/${ref}${rawToken ? `?token=${rawToken}` : ''}`)
         .then(data => {
           if (data) {
+            if ('error' in data) {
+              setError(data.error as string);
+              return;
+            }
             setBooking(prev => ({
               ...prev,
               ...data,
-              qrToken: data.qrToken || rawToken || prev.qrToken,
+              qrToken: (data as any).qrToken || rawToken || prev.qrToken,
             }));
           }
         })
-        .catch(() => {
-          // Keep resilient fallback
+        .catch((err) => {
+          setError(err.message || 'Access Denied: You do not have permission to view this booking.');
         });
     }
   }, [ref, rawToken]);
@@ -91,7 +96,7 @@ function ConfirmationContent() {
     ? `${window.location.origin}/verify/${qrPayload}`
     : `https://encore-ticket-booking-web.vercel.app/verify/${qrPayload}`;
 
-  if (sessionLoaded && !user) {
+  if (sessionLoaded && !user && !rawToken) {
     return (
       <main className="confirmation-page" style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
         <PortalNav />
@@ -101,7 +106,27 @@ function ConfirmationContent() {
               <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 500 }}>Ticket Awaiting</h2>
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 15 }}>Please log in to view your secure event pass.</p>
             </div>
-            <AuthForm mode="login" />
+            <AuthForm mode="login" redirectUrl={`/booking/${ref}/confirmation`} />
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="confirmation-page" style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+        <PortalNav />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ maxWidth: 400, width: '100%', background: 'var(--bg-elevated)', borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden', textAlign: 'center', padding: '32px 24px' }}>
+            <ShieldCheck size={48} color="var(--coral)" style={{ margin: '0 auto 16px' }} />
+            <h2 style={{ margin: '0 0 12px', fontSize: 24, fontWeight: 500, color: 'var(--coral)' }}>Access Denied</h2>
+            <p style={{ margin: '0 0 24px', color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.5 }}>
+              {error}
+            </p>
+            <Link href="/" className="coral-button" style={{ display: 'inline-block', width: '100%' }}>
+              Return Home
+            </Link>
           </div>
         </div>
       </main>

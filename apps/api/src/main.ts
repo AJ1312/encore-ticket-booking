@@ -1180,33 +1180,43 @@ export class AppController {
     let result;
     try {
       result = await db.transaction(async tx => {
-        const held: string[] = [];
-        for (const seatId of input.data.seatIds) {
-          const seatRow = (
-            await tx
-              .select({ price: seats.pricePaise })
-              .from(showSeats)
-              .innerJoin(seats, eq(seats.id, showSeats.seatId))
-              .where(and(eq(showSeats.id, seatId), eq(showSeats.showId, showId)))
-              .limit(1)
-          )[0];
+        const seatRows = await tx
+          .select({ id: showSeats.id, price: seats.pricePaise })
+          .from(showSeats)
+          .innerJoin(seats, eq(seats.id, showSeats.seatId))
+          .where(and(inArray(showSeats.id, input.data.seatIds), eq(showSeats.showId, showId)))
+          .for('update');
 
-          if (!seatRow) throw new ConflictException('Seat does not exist');
+        if (seatRows.length !== input.data.seatIds.length) {
+          throw new ConflictException('One or more seats do not exist');
+        }
 
-          const updated = await tx
-            .update(showSeats)
-            .set({ status: 'held', heldByUserId: u.sub, heldUntil, heldPricePaise: seatRow.price, version: sql`${showSeats.version}+1` })
-            .where(
-              and(
-                eq(showSeats.id, seatId),
-                eq(showSeats.showId, showId),
-                sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND (${showSeats.heldUntil}<=now() OR ${showSeats.heldByUserId}=${u.sub})))`
+        const updates = await Promise.all(
+          seatRows.map(seatRow =>
+            tx
+              .update(showSeats)
+              .set({
+                status: 'held',
+                heldByUserId: u.sub,
+                heldUntil,
+                heldPricePaise: seatRow.price,
+                version: sql`${showSeats.version}+1`
+              })
+              .where(
+                and(
+                  eq(showSeats.id, seatRow.id),
+                  eq(showSeats.showId, showId),
+                  sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND (${showSeats.heldUntil}<=now() OR ${showSeats.heldByUserId}=${u.sub})))`
+                )
               )
-            )
-            .returning({ id: showSeats.id });
+              .returning({ id: showSeats.id })
+          )
+        );
 
-          if (!updated[0]) throw new ConflictException('One or more seats were just taken');
-          held.push(seatId);
+        const held = updates.map(u => u[0]?.id).filter(Boolean);
+
+        if (held.length !== input.data.seatIds.length) {
+          throw new ConflictException('One or more seats were just taken');
         }
 
         const hold = (
@@ -1507,15 +1517,32 @@ export class AppController {
 
   @Post('waitlist')
   async waitlist(@Body() body: unknown, @Req() req: Request) {
-    const u = auth(req);
     const input = waitlistSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Invalid waitlist request');
+
+    let userId: string;
+    try {
+      const u = auth(req);
+      userId = u.sub;
+    } catch {
+      if (!input.data.email) throw new UnauthorizedException('Must be logged in or provide an email');
+      const email = input.data.email.toLowerCase();
+      const existingUser = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+      if (existingUser[0]) {
+        userId = existingUser[0].id;
+      } else {
+        const { hash } = await import('argon2');
+        const passwordHash = await hash(Math.random().toString(36).slice(2) + 'Waitlist!1');
+        const newUser = await db.insert(users).values({ name: 'Waitlist User', email, passwordHash, role: 'customer' }).returning({ id: users.id });
+        userId = newUser[0].id;
+      }
+    }
 
     const existing = (
       await db
         .select({ id: waitlistEntries.id, status: waitlistEntries.status })
         .from(waitlistEntries)
-        .where(and(eq(waitlistEntries.showId, input.data.showId), eq(waitlistEntries.userId, u.sub), eq(waitlistEntries.status, 'waiting')))
+        .where(and(eq(waitlistEntries.showId, input.data.showId), eq(waitlistEntries.userId, userId), eq(waitlistEntries.status, 'waiting')))
         .limit(1)
     )[0];
 
@@ -1524,7 +1551,7 @@ export class AppController {
     return (
       await db
         .insert(waitlistEntries)
-        .values({ showId: input.data.showId, category: input.data.category, userId: u.sub })
+        .values({ showId: input.data.showId, category: input.data.category, userId })
         .returning({ id: waitlistEntries.id, status: waitlistEntries.status })
     )[0];
   }

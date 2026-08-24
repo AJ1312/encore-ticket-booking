@@ -155,9 +155,15 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
         html = wrap(`<h1>Seat <em>Available</em></h1>`, `
           <p>Good news! Seats have opened up for:</p>
           <div class="event-title">${payload.eventTitle || 'the event'}</div>
-          <p>We've reserved these seats for you for the next 15 minutes. Claim them before the timer runs out!</p>
+          <p>These seats are first come, first served. Claim them immediately before someone else does!</p>
           <a href="${baseUrl}/shows/${payload.showId}/checkout" class="button">Claim Seats</a>
         `, icons.bell);
+      } else if (payload.template === 'waitlist_missed') {
+        html = wrap(`<h1>Seats <em>Booked Again</em></h1>`, `
+          <p>We're sorry, but the seats that just opened up for:</p>
+          <div class="event-title">${payload.eventTitle || 'the event'}</div>
+          <p>Have already been booked by another user. You are still on the waitlist and we will notify you if more seats become available.</p>
+        `, icons.cancel);
       } else if (payload.template === 'event_reminder') {
         html = wrap(`<h1>It's <em>Time</em></h1>`, `
           <p>Your event is happening today!</p>

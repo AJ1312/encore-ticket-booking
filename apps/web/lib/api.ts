@@ -17,8 +17,21 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await apiFetch(path, init);
   if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(errorText || `Request failed (${response.status})`);
+    let errorMsg = `Request failed (${response.status})`;
+    try {
+      const errorData = await response.json();
+      if (errorData && Array.isArray(errorData.message)) {
+        errorMsg = errorData.message.join(', ');
+      } else if (errorData && typeof errorData.message === 'string') {
+        errorMsg = errorData.message;
+      } else if (errorData && typeof errorData.error === 'string') {
+        errorMsg = errorData.error;
+      }
+    } catch {
+      const errorText = await response.text().catch(() => '');
+      if (errorText) errorMsg = errorText;
+    }
+    throw new Error(errorMsg);
   }
   return response.json() as Promise<T>;
 }
