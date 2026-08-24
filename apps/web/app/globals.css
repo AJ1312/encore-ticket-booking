@@ -343,3 +343,25 @@ button { cursor:pointer; }
     border-radius: 1px !important;
   }
 }
+
+@keyframes skeleton-pulse {
+  0% { opacity: 0.2; }
+  50% { opacity: 0.4; }
+  100% { opacity: 0.2; }
+}
+
+.skeleton-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+.skeleton-seat {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  animation: skeleton-pulse 1.5s infinite ease-in-out;
+}

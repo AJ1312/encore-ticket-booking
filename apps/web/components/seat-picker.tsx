@@ -588,7 +588,11 @@ export function SeatPicker({ eventId }: { eventId: string }) {
       <section className="booking-area">
         <div className="map-column">
           {loading ? (
-            <div className="empty-state">{isDining ? 'Loading dining room floorplan…' : 'Loading live seat inventory…'}</div>
+            <div className="skeleton-grid" style={{ width: '100%', maxWidth: 800, padding: 40 }}>
+              {Array.from({ length: 60 }).map((_, i) => (
+                <div key={i} className="skeleton-seat" style={{ animationDelay: `${(i % 10) * 0.1}s` }} />
+              ))}
+            </div>
           ) : error ? (
             <div className="empty-state">
               <h3>Inventory unavailable</h3>
@@ -823,7 +827,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
             disabled={!selected.length || securingHold}
             className={`coral-button summary-cta ${selected.length ? '' : 'disabled'}`}
           >
-            <Check size={16} /> {securingHold ? 'Locking Hold on Server…' : selected.length ? (isDining ? 'Continue to table checkout' : 'Continue to checkout') : (isDining ? 'Select a table' : 'Select a seat')} <ChevronRight size={16} />
+            <Check size={16} className={securingHold ? "animate-pulse" : ""} /> {securingHold ? (isDining ? 'Securing table...' : 'Securing your seats...') : selected.length ? (isDining ? 'Continue to table checkout' : 'Continue to checkout') : (isDining ? 'Select a table' : 'Select a seat')} <ChevronRight size={16} />
           </button>
           <p className="summary-foot">
             {isDining ? 'Tables are held exclusively for 15 minutes upon confirmation.' : 'Seats are held atomically on the server for 15 minutes.'}
