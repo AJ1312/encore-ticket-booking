@@ -192,16 +192,16 @@ function ConfirmationContent() {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, color: '#c0b6af', fontSize: 13, margin: '0 0 24px' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <MapPin size={14} color="var(--coral)" /> {booking.venue || 'Riverside Grounds'}, {booking.city || 'Mumbai'}
+                <MapPin size={14} color="var(--coral)" /> {booking.venue ? `${booking.venue}${booking.city ? `, ${booking.city}` : ''}` : 'Venue TBA'}
               </span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <Calendar size={14} color="var(--coral)" />{' '}
                 {booking.startsAt
                   ? new Date(booking.startsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                  : '28 Aug 2026'}
+                  : 'Date TBA'}
               </span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Clock size={14} color="var(--coral)" /> Doors 7:00 PM · Show 8:00 PM
+                <Clock size={14} color="var(--coral)" /> {booking.startsAt ? new Date(booking.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'Doors open 1h prior'}
               </span>
             </div>
 
@@ -222,7 +222,7 @@ function ConfirmationContent() {
                 <strong style={{ font: '15px var(--mono)', color: 'var(--peach)', fontWeight: 600 }}>
                   {booking.seats?.length
                     ? booking.seats.map(s => `${s.row}${s.number} (${s.category || 'Standard'})`).join(', ')
-                    : 'A1, A2 (Premium)'}
+                    : 'Reserved Pass'}
                 </strong>
               </div>
 
