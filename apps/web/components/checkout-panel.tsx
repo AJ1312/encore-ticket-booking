@@ -378,9 +378,9 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           </div>
         </div>
 
-        <div className="checkout-grid" style={{ display: 'flex', justifyContent: 'space-between', gap: 40, alignItems: 'flex-start' }}>
+        <div className="checkout-grid">
           {/* Left: Mandatory Authentication or Verified Profile */}
-          <div style={{ flex: 1 }}>
+          <div>
             {!user ? (
               <section
                 style={{
@@ -574,8 +574,6 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           <aside
             className="checkout-order"
             style={{
-              flexBasis: 380,
-              flexShrink: 0,
               background: '#16191d',
               border: '1px solid #332d29',
               borderRadius: 8,
