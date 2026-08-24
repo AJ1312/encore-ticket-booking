@@ -12,12 +12,14 @@ import { signIn, signUp } from '@/lib/auth';
 
 type Seat = { id: string; row: string; number: number; pricePaise: number; status: 'available' | 'held' | 'booked'; category?: string };
 
-export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?: string }) {
+export function CheckoutPanel({ eventId }: { eventId?: string }) {
   const params = useSearchParams();
   const router = useRouter();
-  const staticEvent = getEvent(eventId);
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
-  const showId = isUUID ? eventId : staticEvent.showId;
+  const showIdQuery = params.get('showId');
+  const effectiveEventId = eventId || showIdQuery || 'the-night-we-remember';
+  const staticEvent = getEvent(effectiveEventId);
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveEventId);
+  const showId = isUUID ? effectiveEventId : (showIdQuery || staticEvent.showId);
   const seatIds = useMemo(() => (params.get('seats') || '').split(',').filter(Boolean), [params]);
 
   const [eventMeta, setEventMeta] = useState(staticEvent);
@@ -100,16 +102,6 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
       try {
         if (showId) {
           const inventory = await apiJson<{ seats: Seat[]; show?: any }>(`/shows/${showId}/seats`).catch(() => null);
-          if (inventory && inventory.show) {
-            setEventMeta(prev => ({
-              ...prev,
-              title: inventory.show.title,
-              venue: inventory.show.venue,
-              city: inventory.show.city,
-              date: new Date(inventory.show.startsAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
-              time: new Date(inventory.show.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-            }));
-          }
           if (inventory && inventory.seats) {
             const chosen = inventory.seats.filter(seat => seatIds.includes(seat.id));
             if (chosen.length > 0) setSeats(chosen);
@@ -307,19 +299,30 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
 
   const holdProgress = Math.max(0, Math.min(100, (holdSeconds / 900) * 100));
 
-  if (state === 'loading' && isUUID) {
+  if (state === 'loading') {
     return (
       <main className="checkout-page" style={{ minHeight: '100vh', background: 'var(--bg)', display: 'grid', placeItems: 'center' }}>
         <PortalNav />
         <div style={{ textAlign: 'center', margin: 'auto' }}>
-          <div style={{ display: 'inline-block', position: 'relative', width: 64, height: 64, marginBottom: 24 }}>
-            <div style={{ position: 'absolute', inset: 0, border: '4px solid #332d29', borderRadius: '50%' }} />
-            <div style={{ position: 'absolute', inset: 0, border: '4px solid var(--peach)', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <Sparkles size={20} color="var(--coral)" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+            <div style={{ width: 60, height: 60, border: '4px solid #332d29', borderRadius: '50%', animation: 'bounceScale 1.2s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 30, height: 30, background: 'var(--coral)', borderRadius: '50%', animation: 'bounceScale 1.2s ease-in-out infinite reverse' }}>
+                <Sparkles size={16} color="var(--paper)" style={{ margin: '7px auto' }} />
+              </div>
+            </div>
+            <h2 style={{ font: '28px var(--serif)', color: 'var(--paper)', margin: '0 0 8px', animation: 'pulseText 1.5s ease-in-out infinite' }}>Securing checkout...</h2>
+            <p style={{ color: 'var(--muted)', font: '13px var(--mono)', textTransform: 'uppercase', letterSpacing: 2 }}>Retrieving held seats</p>
+            <style dangerouslySetInnerHTML={{ __html: `
+              @keyframes bounceScale {
+                0%, 100% { transform: scale(1); opacity: 0.8; }
+                50% { transform: scale(1.15); opacity: 1; border-color: var(--peach); box-shadow: 0 0 20px rgba(224, 122, 95, 0.4); }
+              }
+              @keyframes pulseText {
+                0%, 100% { opacity: 0.7; }
+                50% { opacity: 1; color: var(--peach); }
+              }
+            ` }} />
           </div>
-          <h2 style={{ font: '32px var(--serif)', color: 'var(--paper)', margin: '0 0 12px' }}>Securing checkout...</h2>
-          <p style={{ color: 'var(--muted)', font: '14px var(--mono)', textTransform: 'uppercase', letterSpacing: 2 }}>Retrieving held seats</p>
-          <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }` }} />
         </div>
         <PortalFooter />
       </main>

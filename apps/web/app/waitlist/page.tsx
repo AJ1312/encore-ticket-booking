@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, Clock3 } from 'lucide-react';
+import { ArrowUpRight, Clock3, ChevronRight } from 'lucide-react';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { useEffect, useState } from 'react';
@@ -68,9 +68,11 @@ export default function WaitlistPage() {
                   Claim offer now <ArrowUpRight size={16} />
                 </Link>
               ) : (
-                <Link href={`/events/${item.showId || 'the-night-we-remember'}`} className="portal-link">
-                  View event details <ArrowUpRight size={15} />
-                </Link>
+                item.showId ? (
+                  <Link href={`/events/${item.showId}`} className="portal-link">
+                    View event details <ChevronRight size={14} />
+                  </Link>
+                ) : null
               )}
             </div>
           ))

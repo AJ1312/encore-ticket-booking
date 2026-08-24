@@ -317,14 +317,11 @@ async function ensureShowSeats(showId: string) {
       },
     };
 
-    const cfg = cityShows[showId] || {
-      venueId: '33333333-3333-4333-8333-333333333333',
-      venueName: 'Riverside Grounds',
-      city: 'Mumbai',
-      eventId: '44444444-4444-4444-8444-444444444444',
-      eventTitle: 'The Night We Remember',
-      posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
-    };
+    const cfg = cityShows[showId];
+    if (!cfg) {
+      console.warn(`[ensureShowSeats] No configuration found for showId: ${showId}.`);
+      return;
+    }
 
     await db.insert(venues).values({
       id: cfg.venueId,
@@ -1777,6 +1774,13 @@ async function bootstrap() {
   const port = Number(process.env.PORT) || 4000;
   await app.listen(port, '0.0.0.0');
   console.log(`[Encore API] Server actively listening on 0.0.0.0:${port}`);
+
+  try {
+    const { fixDb } = await import('./fix-db');
+    await fixDb();
+  } catch (err) {
+    console.warn('[Bootstrap] fixDb warning:', err);
+  }
 
   try {
     await db.insert(jobs).values({ type: 'release_expired_holds', payload: {} }).catch(() => null);

@@ -45,16 +45,22 @@ export default function WaitlistOfferPage({ params }: { params: Promise<{ entryI
       await apiJson(`/waitlist/${entryId}/claim`, { method: 'POST' }).catch(() => null);
       setClaimed(true);
       setTimeout(() => {
-        const routeShow = entry?.showId || 'the-night-we-remember';
-        const routeSeats = entry?.offeredSeatIds?.length ? entry.offeredSeatIds.join(',') : 's-a1';
-        router.push(`/shows/${routeShow}/checkout?seats=${routeSeats}`);
+        if (!entry?.showId) {
+          router.push('/events');
+          return;
+        }
+        const routeSeats = entry.offeredSeatIds?.length ? entry.offeredSeatIds.join(',') : 's-a1';
+        router.push(`/shows/${entry.showId}/checkout?seats=${routeSeats}`);
       }, 1200);
     } catch {
       setClaimed(true);
       setTimeout(() => {
-        const routeShow = entry?.showId || 'the-night-we-remember';
-        const routeSeats = entry?.offeredSeatIds?.length ? entry.offeredSeatIds.join(',') : 's-a1';
-        router.push(`/shows/${routeShow}/checkout?seats=${routeSeats}`);
+        if (!entry?.showId) {
+          router.push('/events');
+          return;
+        }
+        const routeSeats = entry.offeredSeatIds?.length ? entry.offeredSeatIds.join(',') : 's-a1';
+        router.push(`/shows/${entry.showId}/checkout?seats=${routeSeats}`);
       }, 1200);
     } finally {
       setLoading(false);

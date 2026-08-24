@@ -25,7 +25,7 @@ type DiningTable = {
   status: SeatStatus;
 };
 
-export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: string }) {
+export function SeatPicker({ eventId }: { eventId: string }) {
   const router = useRouter();
   const staticEvent = getEvent(eventId);
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
@@ -119,21 +119,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
     if (!showId) return;
     apiJson<{ seats: Seat[]; show?: any }>(`/shows/${showId}/seats`)
       .then(result => {
-        if (isUUID && !result.show) {
-          // Keep loading screen indefinitely if backend returns empty show for real event
-          return;
-        }
         setSeats(result.seats || []);
-        if (result.show) {
-          setEventMeta(prev => ({
-            ...prev,
-            title: result.show.title,
-            venue: result.show.venue,
-            city: result.show.city,
-            date: new Date(result.show.startsAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
-            time: new Date(result.show.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-          }));
-        }
         setLoading(false);
       })
       .catch(() => {
@@ -303,19 +289,30 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
   const table4Count = diningTables.filter(t => t.capacity === 4 && t.status === 'available').length;
   const table6Count = diningTables.filter(t => t.capacity === 6 && t.status === 'available').length;
 
-  if (loading && isUUID) {
+  if (loading) {
     return (
       <main className="booking-page" style={{ minHeight: '100vh', background: 'var(--bg)', display: 'grid', placeItems: 'center' }}>
         <PortalNav />
         <div style={{ textAlign: 'center', margin: 'auto' }}>
-          <div style={{ display: 'inline-block', position: 'relative', width: 64, height: 64, marginBottom: 24 }}>
-            <div style={{ position: 'absolute', inset: 0, border: '4px solid #332d29', borderRadius: '50%' }} />
-            <div style={{ position: 'absolute', inset: 0, border: '4px solid var(--peach)', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <Sparkles size={20} color="var(--coral)" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+            <div style={{ width: 60, height: 60, border: '4px solid #332d29', borderRadius: '50%', animation: 'bounceScale 1.2s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 30, height: 30, background: 'var(--coral)', borderRadius: '50%', animation: 'bounceScale 1.2s ease-in-out infinite reverse' }}>
+                <Sparkles size={16} color="var(--paper)" style={{ margin: '7px auto' }} />
+              </div>
+            </div>
+            <h2 style={{ font: '28px var(--serif)', color: 'var(--paper)', margin: '0 0 8px', animation: 'pulseText 1.5s ease-in-out infinite' }}>Getting your tickets ready...</h2>
+            <p style={{ color: 'var(--muted)', font: '13px var(--mono)', textTransform: 'uppercase', letterSpacing: 2 }}>Loading live seat inventory</p>
+            <style dangerouslySetInnerHTML={{ __html: `
+              @keyframes bounceScale {
+                0%, 100% { transform: scale(1); opacity: 0.8; }
+                50% { transform: scale(1.15); opacity: 1; border-color: var(--peach); box-shadow: 0 0 20px rgba(224, 122, 95, 0.4); }
+              }
+              @keyframes pulseText {
+                0%, 100% { opacity: 0.7; }
+                50% { opacity: 1; color: var(--peach); }
+              }
+            ` }} />
           </div>
-          <h2 style={{ font: '32px var(--serif)', color: 'var(--paper)', margin: '0 0 12px' }}>Preparing your map...</h2>
-          <p style={{ color: 'var(--muted)', font: '14px var(--mono)', textTransform: 'uppercase', letterSpacing: 2 }}>Loading live seat inventory</p>
-          <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }` }} />
         </div>
         <PortalFooter />
       </main>
