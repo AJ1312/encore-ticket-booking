@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, startTransition } from 'react';
 import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
-import { getEvent } from '@/lib/events';
+import { getEvent, encoreEvents } from '@/lib/events';
 import { apiJson, API_URL } from '@/lib/api';
 import { signIn, signUp } from '@/lib/auth';
 import { io } from 'socket.io-client';
@@ -31,20 +31,46 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
   const showId = isUUID ? eventId : staticEvent?.showId;
 
+  const matchedStatic = staticEvent || encoreEvents.find(e => 
+    (showId && (e.showId === showId || e.slug === showId)) || 
+    (eventId && (e.showId === eventId || e.slug === eventId))
+  );
+
   const [eventMeta, setEventMeta] = useState<any>(() => {
-    if (staticEvent) {
+    if (matchedStatic) {
       return {
-        title: staticEvent.title,
-        venue: staticEvent.venue,
-        city: staticEvent.city,
-        date: staticEvent.date,
-        time: staticEvent.time,
-        kind: staticEvent.kind || 'Events',
+        title: matchedStatic.title,
+        venue: matchedStatic.venue,
+        city: matchedStatic.city,
+        date: matchedStatic.date,
+        time: matchedStatic.time,
+        kind: matchedStatic.kind || 'Events',
       };
     }
     return { title: 'Loading...', venue: 'Loading...', city: '', date: '', time: '', kind: 'Events' };
   });
-  const isDining = eventMeta?.kind === 'Dining';
+
+  const isDining =
+    eventMeta?.kind?.toLowerCase() === 'dining' ||
+    matchedStatic?.kind?.toLowerCase() === 'dining' ||
+    (typeof eventMeta?.title === 'string' && (
+      eventMeta.title.toLowerCase().includes('dining') ||
+      eventMeta.title.toLowerCase().includes('brunch') ||
+      eventMeta.title.toLowerCase().includes('canteen') ||
+      eventMeta.title.toLowerCase().includes('bistro') ||
+      eventMeta.title.toLowerCase().includes('hops & needle') ||
+      eventMeta.title.toLowerCase().includes('sunday social') ||
+      eventMeta.title.toLowerCase().includes('candlelight jazz & dine')
+    )) ||
+    (typeof matchedStatic?.title === 'string' && (
+      matchedStatic.title.toLowerCase().includes('dining') ||
+      matchedStatic.title.toLowerCase().includes('brunch') ||
+      matchedStatic.title.toLowerCase().includes('canteen') ||
+      matchedStatic.title.toLowerCase().includes('bistro') ||
+      matchedStatic.title.toLowerCase().includes('hops & needle') ||
+      matchedStatic.title.toLowerCase().includes('sunday social') ||
+      matchedStatic.title.toLowerCase().includes('candlelight jazz & dine')
+    ));
 
   const [seats, setSeats] = useState<Seat[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -173,13 +199,31 @@ export function SeatPicker({ eventId }: { eventId: string }) {
         startTransition(() => {
           setSeats(result.seats || []);
           if (result.meta) {
+            const matched = staticEvent || encoreEvents.find(e => 
+              (showId && (e.showId === showId || e.slug === showId)) || 
+              (result.meta.title && e.title.toLowerCase() === result.meta.title.toLowerCase())
+            );
+            const isDiningEvent = 
+              matched?.kind?.toLowerCase() === 'dining' || 
+              result.meta.type?.toLowerCase() === 'dining' ||
+              (typeof result.meta.title === 'string' && (
+                result.meta.title.toLowerCase().includes('dining') ||
+                result.meta.title.toLowerCase().includes('brunch') ||
+                result.meta.title.toLowerCase().includes('canteen') ||
+                result.meta.title.toLowerCase().includes('bistro') ||
+                result.meta.title.toLowerCase().includes('hops & needle') ||
+                result.meta.title.toLowerCase().includes('sunday social')
+              ));
+
+            const resolvedKind = isDiningEvent ? 'Dining' : (matched?.kind || result.meta.type || 'Events');
+
             setEventMeta({
-              title: result.meta.title,
-              venue: result.meta.venue,
-              city: result.meta.city,
-              date: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : (staticEvent?.date || ''),
-              time: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : (staticEvent?.time || ''),
-              kind: result.meta.type || staticEvent?.kind || 'Events',
+              title: result.meta.title || matched?.title,
+              venue: result.meta.venue || matched?.venue,
+              city: result.meta.city || matched?.city,
+              date: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : (matched?.date || ''),
+              time: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : (matched?.time || ''),
+              kind: resolvedKind,
             });
           }
           setLoading(false);
@@ -546,7 +590,13 @@ export function SeatPicker({ eventId }: { eventId: string }) {
 
             <button
               type="button"
-              onClick={() => setWaitlistOpen(true)}
+              className="waitlist-alert-btn"
+              onClick={() => {
+                setWaitlistCategory('General / Any Open Seat');
+                setWaitlistOpen(true);
+              }}
+              title="Notify When Seats Open"
+              aria-label="Notify When Seats Open"
               style={{
                 padding: '10px 18px',
                 background: 'linear-gradient(135deg, #2b1812 0%, #1c1411 100%)',
@@ -561,7 +611,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
               }}
             >
               <Bell size={15} color="var(--coral)" />
-              <strong style={{ font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <strong className="waitlist-alert-text" style={{ font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Notify When Seats Open
               </strong>
             </button>

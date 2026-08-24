@@ -145,15 +145,24 @@ export async function fixDb() {
       }).onConflictDoNothing();
       await db.update(venues).set({ name: cfg.venueName, city: cfg.city }).where(eq(venues.id, cfg.venueId));
 
+      const eventType: 'dining' | 'comedy' | 'movie' | 'concert' = 
+        cfg.eventTitle.includes('Brunch') || cfg.eventTitle.includes('Small Plates') || cfg.eventTitle.includes('Dine')
+          ? 'dining'
+          : cfg.eventTitle.includes('Comedy') || cfg.eventTitle.includes('Actually')
+          ? 'comedy'
+          : cfg.eventTitle.includes('Marigold')
+          ? 'movie'
+          : 'concert';
+
       await db.insert(events).values({
         id: cfg.eventId,
         organiserId: defaultOrganiserId,
         title: cfg.eventTitle,
-        description: 'An intimate live set under the city lights.',
-        type: 'concert',
+        description: 'An intimate live experience under the city lights.',
+        type: eventType,
         posterUrl: cfg.posterUrl,
       }).onConflictDoNothing();
-      await db.update(events).set({ title: cfg.eventTitle, posterUrl: cfg.posterUrl }).where(eq(events.id, cfg.eventId));
+      await db.update(events).set({ title: cfg.eventTitle, posterUrl: cfg.posterUrl, type: eventType }).where(eq(events.id, cfg.eventId));
 
       await db.insert(shows).values({
         id: showId,

@@ -379,3 +379,20 @@ button { cursor:pointer; }
   outline: 2px solid var(--coral);
   outline-offset: 2px;
 }
+
+/* Mobile Waitlist Alert Bell Icon */
+@media (max-width: 768px) {
+  .waitlist-alert-text {
+    display: none !important;
+  }
+  .waitlist-alert-btn {
+    padding: 8px 10px !important;
+    gap: 0 !important;
+    border-radius: 50% !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+}

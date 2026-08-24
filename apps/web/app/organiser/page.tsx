@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, KeyRound, LogIn, Plus, Check } from 'lucide-react';
+import { ArrowUpRight, KeyRound, LogIn, Plus, Check, Scan } from 'lucide-react';
 import { PortalFooter } from '@/components/portal-footer';
 import { PortalNav } from '@/components/portal-nav';
 import { useEffect, useState } from 'react';
@@ -120,14 +120,19 @@ export default function OrganiserPage() {
         </div>
 
         <section className="portal-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
             <div>
               <span className="eyebrow">Upcoming programme</span>
               <h2>Your events</h2>
             </div>
-            <Link href="/organiser/events/new" className="coral-button">
-              <Plus size={15} /> Create event
-            </Link>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Link href="/organiser/scanner" style={{ padding: '8px 14px', background: '#e2eae0', border: '1px solid #c5d4c2', color: '#2d5e3f', borderRadius: 4, textDecoration: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
+                <Scan size={14} /> Gate Scanner Mode
+              </Link>
+              <Link href="/organiser/events/new" className="coral-button">
+                <Plus size={15} /> Create event
+              </Link>
+            </div>
           </div>
 
           {eventsList.length ? (
