@@ -23,6 +23,20 @@ export default function TicketsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+
+  async function cancelBooking(bookingRef: string) {
+    if (!window.confirm('Are you sure you want to cancel this booking? This will immediately release your seats/tables.')) return;
+    setCancelling(bookingRef);
+    try {
+      await apiJson(`/bookings/${bookingRef}/cancel`, { method: 'POST' });
+      setBookings(prev => prev.map(b => b.bookingRef === bookingRef ? { ...b, status: 'cancelled' } : b));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to cancel booking');
+    } finally {
+      setCancelling(null);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -132,13 +146,25 @@ export default function TicketsPage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <Link
-                    href={`/booking/${booking.bookingRef}/confirmation?showId=${booking.showId || ''}`}
-                    className="coral-button"
-                    style={{ padding: '10px 18px', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, whiteSpace: 'nowrap' }}
-                  >
-                    Open QR Pass <ArrowUpRight size={14} />
-                  </Link>
+                  {booking.status === 'confirmed' && (
+                    <button
+                      onClick={() => cancelBooking(booking.bookingRef)}
+                      disabled={cancelling === booking.bookingRef}
+                      className="ghost-button"
+                      style={{ padding: '8px 12px', fontSize: 10, borderColor: '#4a2b2b', color: '#ff7070' }}
+                    >
+                      {cancelling === booking.bookingRef ? 'Cancelling...' : 'Cancel Booking'}
+                    </button>
+                  )}
+                  {booking.status === 'confirmed' && (
+                    <Link
+                      href={`/booking/${booking.bookingRef}/confirmation?showId=${booking.showId || ''}`}
+                      className="coral-button"
+                      style={{ padding: '10px 18px', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, whiteSpace: 'nowrap' }}
+                    >
+                      Open QR Pass <ArrowUpRight size={14} />
+                    </Link>
+                  )}
                 </div>
               </article>
             ))}

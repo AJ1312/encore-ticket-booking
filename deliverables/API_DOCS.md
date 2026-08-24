@@ -8,6 +8,7 @@
 | `POST` | `/api/shows/:showId/hold` | Atomically reserve seats (15 min TTL) | Yes |
 | `POST` | `/api/shows/:showId/payment-intent` | Finalize hold and generate payment context | Yes |
 | `POST` | `/api/bookings/confirm` | Confirm payment and issue ticket pass | Yes |
+| `POST` | `/api/bookings/:bookingRef/cancel` | Cancel booking and release seats | Yes |
 | `POST` | `/api/waitlist` | Join the FIFO waitlist for a sold-out category | Yes |
 
 *Note: All authenticated endpoints require a `Bearer <token>` header.*

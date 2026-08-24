@@ -957,9 +957,17 @@ export class AppController {
           .where(and(inArray(showSeats.id, seatsToRelease.map(s => s.showSeatId)), eq(showSeats.status, 'booked')));
       }
 
+      const showDetails = (await tx.select({ title: events.title }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, booking.showId)).limit(1))[0];
+
       await tx.insert(jobs).values([
         { type: 'allocate_waitlist', payload: { showId: booking.showId, seatIds: seatsToRelease.map(s => s.showSeatId) } },
-        { type: 'booking_cancellation', payload: { bookingId: booking.id } },
+        { type: 'email_notification', payload: {
+          to: u.email,
+          subject: `Booking Cancelled — ${bookingRef}`,
+          bookingRef: bookingRef,
+          eventTitle: showDetails?.title,
+          template: 'booking_cancelled'
+        } },
       ]);
 
       return { ...booking, status: 'cancelled' };
