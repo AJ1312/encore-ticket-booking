@@ -315,7 +315,11 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
         <h1 style={{ margin: '14px 0 10px', font: 'clamp(44px,6vw,76px) var(--serif)', fontWeight: 400, color: 'var(--paper)' }}>
           Secure your<br /><em>evening.</em>
         </h1>
-        <p className="checkout-lede">Your seats are temporarily held. Sign in to maintain your customer booking record.</p>
+        <p className="checkout-lede">
+          {user 
+            ? "Your seats are temporarily held. Please review your order below." 
+            : "Your seats are temporarily held. Sign in to maintain your customer booking record."}
+        </p>
 
         {/* 15-Minute Hold Progress Indicator */}
         <div
@@ -575,7 +579,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
             </div>
 
             <div className="order-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #282b30', font: '11px var(--mono)' }}>
-              <span style={{ color: 'var(--muted)' }}>Subtotal ({seats.length} seats)</span>
+              <span style={{ color: 'var(--muted)' }}>Subtotal ({seats.length} {seats.length === 1 ? 'seat' : 'seats'})</span>
               <b style={{ color: 'var(--paper)' }}>₹{Math.round(totalPaise / 100).toLocaleString('en-IN')}</b>
             </div>
 
@@ -653,22 +657,6 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={cancelAndRelease}
-              style={{
-                width: '100%',
-                marginTop: 12,
-                background: 'transparent',
-                border: 0,
-                color: 'var(--muted)',
-                font: '10px var(--mono)',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
-            >
-              Cancel & Release Seats
-            </button>
           </aside>
         </div>
       </div>
