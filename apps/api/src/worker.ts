@@ -315,7 +315,8 @@ export async function processOne() {
 }
 
 export function startWorker() {
-  if (process.env.REDIS_URL) return startBullMqWorker();
+  // Only boot BullMQ if explicitly enabled, so we don't drain free-tier Redis limits
+  if (process.env.USE_BULLMQ === 'true' && process.env.REDIS_URL) return startBullMqWorker();
   const tick = async () => {
     try {
       await reclaimStaleJobs();
