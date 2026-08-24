@@ -312,6 +312,25 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
   const table4Count = diningTables.filter(t => t.capacity === 4 && t.status === 'available').length;
   const table6Count = diningTables.filter(t => t.capacity === 6 && t.status === 'available').length;
 
+  if (loading && isUUID) {
+    return (
+      <main className="booking-page" style={{ minHeight: '100vh', background: 'var(--bg)', display: 'grid', placeItems: 'center' }}>
+        <PortalNav />
+        <div style={{ textAlign: 'center', margin: 'auto' }}>
+          <div style={{ display: 'inline-block', position: 'relative', width: 64, height: 64, marginBottom: 24 }}>
+            <div style={{ position: 'absolute', inset: 0, border: '4px solid #332d29', borderRadius: '50%' }} />
+            <div style={{ position: 'absolute', inset: 0, border: '4px solid var(--peach)', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <Sparkles size={20} color="var(--coral)" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+          </div>
+          <h2 style={{ font: '32px var(--serif)', color: 'var(--paper)', margin: '0 0 12px' }}>Preparing your map...</h2>
+          <p style={{ color: 'var(--muted)', font: '14px var(--mono)', textTransform: 'uppercase', letterSpacing: 2 }}>Loading live seat inventory</p>
+          <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }` }} />
+        </div>
+        <PortalFooter />
+      </main>
+    );
+  }
+
   return (
     <main className="booking-page" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <PortalNav />
