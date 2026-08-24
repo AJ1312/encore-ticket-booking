@@ -137,7 +137,7 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
 
     if (process.env.RESEND_API_KEY) {
       try {
-        await fetch('https://api.resend.com/emails', {
+        const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
@@ -150,8 +150,14 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
             html,
           }),
         });
+        
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Resend API Error: ${res.status} - ${text}`);
+        }
       } catch (err) {
         console.error('Failed to send email via Resend API:', err);
+        throw err; // throw to fail the job so we can see it in jobs table
       }
     } else {
       console.log(`[MailDispatcher] Dispatched ${job.type} to ${to} (Subject: "${subject}")`);

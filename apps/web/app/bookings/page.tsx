@@ -67,7 +67,7 @@ export default function TicketsPage() {
   return (
     <main className="customer-site tickets-page" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <PortalNav />
-      <section className="tickets-header" style={{ padding: '60px 6vw 40px', maxWidth: 1000, margin: '0 auto' }}>
+      <section className="tickets-header" style={{ padding: '60px 6vw 40px', maxWidth: 1000, margin: '0 auto', textAlign: 'center' }}>
         <span className="eyebrow">YOUR ACCOUNT / MY TICKETS</span>
         <h1 style={{ margin: '16px 0 12px', font: 'clamp(44px,6vw,72px) var(--serif)', fontWeight: 400, color: 'var(--paper)' }}>
           Plans worth<br />
