@@ -134,6 +134,7 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
     `;
 
     let html = payload.html;
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     if (!html) {
       if (payload.template === 'booking_cancelled') {
         html = wrap(`<h1>Booking <em>Cancelled</em></h1>`, `
@@ -144,19 +145,19 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
         html = wrap(`<h1>Seat <em>Available</em></h1>`, `
           <p>Good news! Seats have opened up for <strong>${payload.eventTitle || 'the event'}</strong>.</p>
           <p>We've reserved these seats for you for the next 15 minutes. Claim them before the timer runs out!</p>
-          <center><a href="https://encore.local/shows/${payload.showId}/checkout" class="button">Claim Seats</a></center>
+          <center><a href="${baseUrl}/shows/${payload.showId}/checkout" class="button">Claim Seats</a></center>
         `);
       } else if (payload.template === 'event_reminder') {
         html = wrap(`<h1>It's <em>Time</em></h1>`, `
           <p>Your event <strong>${payload.eventTitle || 'the event'}</strong> is happening today!</p>
           <p>Don't forget to have your QR pass ready. We hope you have a spectacular evening.</p>
-          <center><a href="https://encore.local/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a></center>
+          <center><a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a></center>
         `);
       } else {
         html = wrap(`<h1>Pass <em>Ready</em></h1>`, `
           <p>Your ticket pass for <strong>${payload.eventTitle || 'your event'}</strong> (${payload.bookingRef || 'Pass'}) is confirmed.</p>
           <p>Your seats are securely locked. Have your QR pass ready at the gate.</p>
-          <center><a href="https://encore.local/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a></center>
+          <center><a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a></center>
         `);
       }
     }
