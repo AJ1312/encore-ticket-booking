@@ -117,15 +117,18 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
     const to = payload.to || 'customer@encore.local';
     const subject = payload.subject || `Encore Pass Ready — ${payload.bookingRef || 'Booking Confirmed'}`;
     
-    const baseStyle = `body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0c0e10; color: #f3eee7; margin: 0; padding: 40px 20px; line-height: 1.6; } .container { max-width: 600px; margin: 0 auto; background-color: #171a1c; border: 1px solid #37312e; border-radius: 8px; overflow: hidden; } .header { padding: 40px 40px 20px; text-align: center; } .header h1 { margin: 0; font-size: 32px; color: #f3eee7; font-weight: normal; font-family: Georgia, serif; } .header em { color: #ff6b35; font-style: italic; } .content { padding: 20px 40px 40px; } .content p { font-size: 16px; color: #a49d97; } .content strong { color: #f3eee7; } .button { display: inline-block; padding: 14px 28px; background-color: #ff6b35; color: #190c07; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 20px; font-family: monospace; text-transform: uppercase; letter-spacing: 1px; } .footer { padding: 20px 40px; background-color: #0c0e10; text-align: center; font-size: 12px; color: #a49d97; border-top: 1px dashed #37312e; }`;
+    const baseStyle = `body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0c0e10; color: #f3eee7; margin: 0; padding: 40px 20px; line-height: 1.6; } .container { max-width: 600px; margin: 0 auto; background-color: #171a1c; border: 1px solid #37312e; border-radius: 8px; overflow: hidden; } .header { padding: 40px 40px 20px; text-align: center; } .header h1 { margin: 16px 0 0; font-size: 32px; color: #f3eee7; font-weight: normal; font-family: Georgia, serif; } .header em { color: #ff6b35; font-style: italic; } .icon-wrapper { display: flex; justify-content: center; align-items: center; margin-bottom: 16px; } .content { padding: 20px 40px 40px; text-align: center; } .content p { font-size: 16px; color: #a49d97; margin-bottom: 24px; } .event-title { display: inline-block; background-color: #2a2522; color: #ff6b35; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 18px; margin: 8px 0 24px; border: 1px solid #4a3a31; } .button { display: inline-block; padding: 14px 32px; background-color: #ff6b35; color: #190c07; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px; font-family: monospace; text-transform: uppercase; letter-spacing: 1px; transition: opacity 0.2s; } .footer { padding: 20px 40px; background-color: #0c0e10; text-align: center; font-size: 12px; color: #a49d97; border-top: 1px dashed #37312e; }`;
 
-    const wrap = (header: string, content: string) => `
+    const wrap = (header: string, content: string, iconSvg: string) => `
       <!DOCTYPE html>
       <html>
       <head><style>${baseStyle}</style></head>
       <body>
         <div class="container">
-          <div class="header">${header}</div>
+          <div class="header">
+            <div class="icon-wrapper">${iconSvg}</div>
+            ${header}
+          </div>
           <div class="content">${content}</div>
           <div class="footer">Encore Tickets, Inc. &middot; Your cryptographic pass to the evening</div>
         </div>
@@ -133,32 +136,42 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
       </html>
     `;
 
+    const icons = {
+      check: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+      cancel: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+      bell: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ffb703" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>`
+    };
+
     let html = payload.html;
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     if (!html) {
       if (payload.template === 'booking_cancelled') {
         html = wrap(`<h1>Booking <em>Cancelled</em></h1>`, `
-          <p>We've successfully cancelled your booking for <strong>${payload.eventTitle || 'the event'}</strong> (Ref: ${payload.bookingRef}).</p>
-          <p>Your seats have been released back to the waitlist pool. If this was a mistake, you'll need to join the waitlist to rebook.</p>
-        `);
+          <p>We've successfully cancelled your booking for:</p>
+          <div class="event-title">${payload.eventTitle || 'the event'}</div>
+          <p>Your seats have been released back to the waitlist pool. (Ref: ${payload.bookingRef})</p>
+        `, icons.cancel);
       } else if (payload.template === 'waitlist_offer') {
         html = wrap(`<h1>Seat <em>Available</em></h1>`, `
-          <p>Good news! Seats have opened up for <strong>${payload.eventTitle || 'the event'}</strong>.</p>
+          <p>Good news! Seats have opened up for:</p>
+          <div class="event-title">${payload.eventTitle || 'the event'}</div>
           <p>We've reserved these seats for you for the next 15 minutes. Claim them before the timer runs out!</p>
-          <center><a href="${baseUrl}/shows/${payload.showId}/checkout" class="button">Claim Seats</a></center>
-        `);
+          <a href="${baseUrl}/shows/${payload.showId}/checkout" class="button">Claim Seats</a>
+        `, icons.bell);
       } else if (payload.template === 'event_reminder') {
         html = wrap(`<h1>It's <em>Time</em></h1>`, `
-          <p>Your event <strong>${payload.eventTitle || 'the event'}</strong> is happening today!</p>
+          <p>Your event is happening today!</p>
+          <div class="event-title">${payload.eventTitle || 'the event'}</div>
           <p>Don't forget to have your QR pass ready. We hope you have a spectacular evening.</p>
-          <center><a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a></center>
-        `);
+          <a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a>
+        `, icons.bell);
       } else {
         html = wrap(`<h1>Pass <em>Ready</em></h1>`, `
-          <p>Your ticket pass for <strong>${payload.eventTitle || 'your event'}</strong> (${payload.bookingRef || 'Pass'}) is confirmed.</p>
-          <p>Your seats are securely locked. Have your QR pass ready at the gate.</p>
-          <center><a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a></center>
-        `);
+          <p>Your ticket pass is confirmed for:</p>
+          <div class="event-title">${payload.eventTitle || 'your event'}</div>
+          <p>Your seats are securely locked. Have your QR pass ready at the gate. (Ref: ${payload.bookingRef})</p>
+          <a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a>
+        `, icons.check);
       }
     }
 
