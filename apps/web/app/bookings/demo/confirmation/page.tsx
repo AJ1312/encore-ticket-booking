@@ -16,8 +16,7 @@ function ConfirmationContent() {
   const rawToken = searchParams.get('token');
   const showIdQuery = searchParams.get('showId');
   const ref = params?.bookingRef || 'ENC-55F9CA50';
-  const fallbackEvent = showIdQuery ? getEvent(showIdQuery) : getEvent('the-night-we-remember');
-  const isDynamicFallback = showIdQuery && fallbackEvent.slug === 'the-night-we-remember' && showIdQuery !== fallbackEvent.showId;
+  const fallbackEvent = showIdQuery ? getEvent(showIdQuery) : undefined;
 
   const [booking, setBooking] = useState<{
     bookingRef: string;
@@ -32,10 +31,10 @@ function ConfirmationContent() {
   }>({
     bookingRef: ref,
     totalPaise: 299800,
-    eventTitle: isDynamicFallback ? 'Loading event details...' : fallbackEvent.title,
-    venue: isDynamicFallback ? 'Loading venue...' : fallbackEvent.venue,
-    city: isDynamicFallback ? '' : fallbackEvent.city,
-    startsAt: isDynamicFallback ? undefined : '2026-08-28T14:30:00.000Z',
+    eventTitle: fallbackEvent ? fallbackEvent.title : 'Loading event details...',
+    venue: fallbackEvent ? fallbackEvent.venue : 'Loading venue...',
+    city: fallbackEvent ? fallbackEvent.city : '',
+    startsAt: fallbackEvent ? undefined : '2026-08-28T14:30:00.000Z',
     customerName: 'Aarav Sharma',
     qrToken: rawToken || undefined,
     seats: [
