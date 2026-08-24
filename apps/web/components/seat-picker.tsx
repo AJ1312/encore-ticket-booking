@@ -245,17 +245,19 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   async function submitWaitlist(e: React.FormEvent) {
     e.preventDefault();
     setWaitlistLoading(true);
+    setWaitlistError('');
     try {
       await apiJson('/waitlist', {
         method: 'POST',
         body: JSON.stringify({
           showId,
           category: waitlistCategory,
+          email: waitlistEmail || user?.email,
         }),
-      }).catch(() => null);
+      });
       setWaitlistSuccess(true);
-    } catch {
-      setWaitlistSuccess(true);
+    } catch (err: any) {
+      setWaitlistError(err?.message || 'Failed to join waitlist. Please check your email and try again.');
     } finally {
       setWaitlistLoading(false);
     }
@@ -1015,8 +1017,14 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                   Get Notified When {isDining ? 'Tables' : 'Seats'} Open
                 </h3>
                 <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
-                  When someone cancels or a hold expires, Encore sends notifications in <strong>priority batches of 5 users</strong> with a <strong>15-minute exclusive booking window</strong>.
+                  When someone cancels or a reservation opens up, Encore dispatches an immediate email notification with an exclusive <strong>15-minute priority claim window</strong>.
                 </p>
+
+                {waitlistError && (
+                  <p style={{ padding: 10, background: '#2d1815', border: '1px solid #632d25', color: '#ff927e', fontSize: 12, borderRadius: 4, marginBottom: 14 }}>
+                    {waitlistError}
+                  </p>
+                )}
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', color: '#d0beb5', font: '10px var(--mono)', textTransform: 'uppercase', marginBottom: 6 }}>
@@ -1077,7 +1085,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                   className="coral-button"
                   style={{ width: '100%' }}
                 >
-                  {waitlistLoading ? 'Registering…' : 'Notify Me In Next Batch of 5 →'}
+                  {waitlistLoading ? 'Registering…' : 'Notify Me When Available →'}
                 </button>
               </form>
             )}

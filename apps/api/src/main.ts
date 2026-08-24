@@ -1528,15 +1528,46 @@ export class AppController {
 
   @Post('waitlist')
   async waitlist(@Body() body: unknown, @Req() req: Request) {
-    const u = auth(req);
+    let userId: string | null = null;
+    try {
+      const u = auth(req);
+      userId = u.sub;
+    } catch {
+      // Guest user without active session
+    }
+
     const input = waitlistSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Invalid waitlist request');
+
+    if (!userId) {
+      if (!input.data.email) {
+        throw new BadRequestException('Please provide an email address to receive seat notifications.');
+      }
+      const existingUser = (
+        await db.select({ id: users.id }).from(users).where(eq(users.email, input.data.email.toLowerCase().trim())).limit(1)
+      )[0];
+      if (existingUser) {
+        userId = existingUser.id;
+      } else {
+        const guestName = input.data.email.split('@')[0];
+        const hash = await argon2.hash(`guest_${Date.now()}_${Math.random()}`);
+        const newUser = (
+          await db.insert(users).values({
+            name: guestName,
+            email: input.data.email.toLowerCase().trim(),
+            passwordHash: hash,
+            role: 'customer',
+          }).returning({ id: users.id })
+        )[0];
+        userId = newUser.id;
+      }
+    }
 
     const existing = (
       await db
         .select({ id: waitlistEntries.id, status: waitlistEntries.status })
         .from(waitlistEntries)
-        .where(and(eq(waitlistEntries.showId, input.data.showId), eq(waitlistEntries.userId, u.sub), eq(waitlistEntries.status, 'waiting')))
+        .where(and(eq(waitlistEntries.showId, input.data.showId), eq(waitlistEntries.userId, userId), eq(waitlistEntries.status, 'waiting')))
         .limit(1)
     )[0];
 
@@ -1545,7 +1576,7 @@ export class AppController {
     return (
       await db
         .insert(waitlistEntries)
-        .values({ showId: input.data.showId, category: input.data.category, userId: u.sub })
+        .values({ showId: input.data.showId, category: input.data.category, userId })
         .returning({ id: waitlistEntries.id, status: waitlistEntries.status })
     )[0];
   }
