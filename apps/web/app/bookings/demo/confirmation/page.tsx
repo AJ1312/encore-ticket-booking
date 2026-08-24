@@ -9,6 +9,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { apiJson } from '@/lib/api';
 import { QRCodeDisplay } from '@/components/qr-code';
 import { AuthForm } from '@/components/auth-form';
+import { getEvent } from '@/lib/events';
 
 
 function ConfirmationContent() {
@@ -17,6 +18,7 @@ function ConfirmationContent() {
   const rawToken = searchParams.get('token');
   const showIdQuery = searchParams.get('showId');
   const ref = params?.bookingRef || 'ENC-55F9CA50';
+  const staticEv = showIdQuery ? getEvent(showIdQuery) : null;
 
   const [booking, setBooking] = useState<{
     bookingRef: string;
@@ -28,17 +30,17 @@ function ConfirmationContent() {
     qrToken?: string;
     customerName?: string;
     seats?: Array<{ row: string; number: number; category?: string }>;
-  }>({
+  }>(() => ({
     bookingRef: ref,
     totalPaise: 0,
-    eventTitle: 'Loading event details...',
-    venue: 'Loading venue...',
-    city: '',
+    eventTitle: staticEv?.title || 'Loading event details...',
+    venue: staticEv?.venue || 'Loading venue...',
+    city: staticEv?.city || '',
     startsAt: undefined,
     customerName: 'Loading attendee...',
     qrToken: rawToken || undefined,
     seats: [],
-  });
+  }));
 
   useEffect(() => {
     if (ref && ref !== 'demo') {
