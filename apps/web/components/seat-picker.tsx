@@ -599,85 +599,77 @@ export function SeatPicker({ eventId }: { eventId: string }) {
               <p>{error}</p>
             </div>
           ) : isDining ? (
-            /* ── RESTAURANT DINING FLOORPLAN ── */
+            /* ── RESTAURANT DINING SELECTOR ── */
             <div className="seat-canvas" style={{ background: '#0e1012', border: '1px solid #23272d', borderRadius: 8, padding: 32 }}>
-              <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>
                 <span style={{ letterSpacing: '0.3em', fontWeight: 700, fontSize: 12, color: 'var(--peach)', textTransform: 'uppercase' }}>
-                  KITCHEN & VINYL RECORD BAR
+                  Select Table Size
                 </span>
                 <div style={{ width: '50%', height: 2, background: 'linear-gradient(90deg, transparent, var(--peach), transparent)', margin: '8px auto 0' }} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 18 }}>
-                {diningTables
-                  .filter(table => !filterCategory || table.capacity.toString() === filterCategory)
-                  .map(table => {
-                    const isSelected = selected.includes(table.id);
-                    const isHeldOrBooked = table.status === 'booked' || table.status === 'sold' || table.status === 'blocked' || table.status === 'held';
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 440, margin: '0 auto' }}>
+                {[2, 4, 6].map(capacity => {
+                  const capacityTables = diningTables.filter(t => t.capacity === capacity);
+                  const availableTables = capacityTables.filter(t => t.status === 'available');
+                  const count = availableTables.length;
+                  const isAvailable = count > 0;
+                  
+                  // Check if current selected array contains a table of this capacity
+                  const currentSelectedTable = diningTables.find(t => selected.includes(t.id));
+                  const isSelected = currentSelectedTable?.capacity === capacity;
 
-                    let tableBorder = table.capacity === 2 ? '#e07a5f' : table.capacity === 4 ? '#52b788' : '#748cab';
-                    let tableBg = table.capacity === 2 ? '#2b1b16' : table.capacity === 4 ? '#16271c' : '#141d26';
-
+                  const handleSelect = () => {
                     if (isSelected) {
-                      tableBg = 'var(--coral)';
-                      tableBorder = 'var(--peach)';
-                    } else if (isHeldOrBooked) {
-                      tableBg = '#191b1e';
-                      tableBorder = '#282b30';
+                      setSelected([]);
+                    } else if (isAvailable) {
+                      setSelected([availableTables[0].id]);
+                    } else if (capacityTables.length > 0) {
+                      // Allow selecting a sold out table for waitlist purposes
+                      setSelected([capacityTables[0].id]);
                     }
+                  };
 
-                    return (
-                      <button
-                        key={table.id}
-                        type="button"
-                        aria-label={`${table.tableLabel}, ${table.capacity} Diners, ${table.section} ${isHeldOrBooked ? '(Held/Sold - click for waitlist)' : ''}`}
-                        aria-pressed={isSelected}
-                        onClick={() => toggle(table.id)}
-                        style={{
-                          background: tableBg,
-                          border: `2px solid ${tableBorder}`,
-                          borderRadius: table.capacity === 2 ? '50%' : table.capacity === 6 ? '12px' : '8px',
-                          padding: '24px 18px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                          cursor: 'pointer',
-                          opacity: isHeldOrBooked && !isSelected ? 0.35 : 1,
-                          transform: isSelected ? 'scale(1.05)' : undefined,
-                          boxShadow: isSelected ? '0 0 18px var(--coral)' : undefined,
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        <Utensils size={18} color={isSelected ? '#fff' : tableBorder} />
-                        <strong style={{ font: '16px var(--mono)', color: isSelected ? '#fff' : 'var(--paper)' }}>
-                          {table.tableLabel}
-                        </strong>
-                        <span style={{ fontSize: 11, font: '10px var(--mono)', color: isSelected ? '#ffd8cc' : '#c0b6af' }}>
-                          {table.capacity} Diners · {table.section}
-                        </span>
-                        <b style={{ fontSize: 13, color: isSelected ? '#fff' : 'var(--paper)', marginTop: 2 }}>
-                          {table.status === 'held'
-                            ? 'On Hold (Notify)'
-                            : isHeldOrBooked
-                            ? 'Reserved (Notify)'
-                            : `₹${Math.round(table.pricePaise / 100).toLocaleString('en-IN')}`}
-                        </b>
-                      </button>
-                    );
-                  })}
+                  return (
+                    <button
+                      key={capacity}
+                      type="button"
+                      onClick={handleSelect}
+                      style={{
+                        background: isSelected ? 'var(--coral)' : isAvailable ? '#14171a' : '#191b1e',
+                        border: `1px solid ${isSelected ? 'var(--peach)' : isAvailable ? '#23272d' : '#282b30'}`,
+                        borderRadius: 12,
+                        padding: '24px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        opacity: isAvailable || isSelected ? 1 : 0.6,
+                        transition: 'all 0.2s',
+                        color: isSelected ? '#fff' : 'var(--paper)',
+                        transform: isSelected ? 'scale(1.02)' : 'none',
+                        boxShadow: isSelected ? '0 0 20px rgba(255, 107, 53, 0.2)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <Utensils size={24} color={isSelected ? '#fff' : 'var(--muted)'} />
+                        <div style={{ textAlign: 'left' }}>
+                          <strong style={{ fontSize: 18, display: 'block', marginBottom: 4 }}>Table for {capacity}</strong>
+                          <span style={{ fontSize: 13, color: isSelected ? '#ffd8cc' : 'var(--muted)', display: 'block' }}>
+                            {isAvailable ? `${count} table${count !== 1 ? 's' : ''} available` : 'Sold out (Join waitlist)'}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 'bold', fontSize: 18 }}>
+                        ₹{((capacity === 2 ? 180000 : capacity === 4 ? 360000 : 540000) / 100).toLocaleString('en-IN')}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="seat-legend" style={{ marginTop: 32, justifyContent: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#e07a5f' }} /> Table for 2</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#52b788' }} /> Table for 4</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#748cab' }} /> Table for 6</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="selected-dot" /> Selected ({selected.length} Tables)</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#282b30' }} /> Reserved / Held</span>
-              </div>
-              <p className="seat-helper" style={{ textAlign: 'center', marginTop: 14 }}>
-                <Info size={14} /> You can select multiple tables for larger groups or parties. Real-time hold verified every second.
+              <p className="seat-helper" style={{ textAlign: 'center', marginTop: 32 }}>
+                <Info size={14} /> Real-time availability updated every second.
               </p>
             </div>
           ) : (
