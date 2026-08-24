@@ -142,18 +142,7 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           }
         }
         if (isMounted && state !== 'error') {
-          if (!seats.length) {
-            setSeats(
-              seatIds.map((id, index) => ({
-                id,
-                row: String.fromCharCode(65 + Math.floor(index / 12)),
-                number: (index % 12) + 1,
-                pricePaise: index < 2 ? 149900 : 99900,
-                status: 'held',
-                category: index < 2 ? 'Premium' : 'Standard',
-              }))
-            );
-          }
+          // Mock data fallback removed
           setState('ready');
         }
       } catch {

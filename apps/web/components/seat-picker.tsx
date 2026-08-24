@@ -289,7 +289,7 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
 
       const query = seatIdsToHold.join(',');
       const holdQuery = hold.holdId ? `&holdId=${encodeURIComponent(hold.holdId)}` : '';
-      router.push(`/shows/${eventId}/checkout?seats=${query}${holdQuery}`);
+      router.push(`/shows/${showId}/checkout?seats=${query}${holdQuery}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'One or more seats were just held by another customer';
       setHoldError(`Hold Conflict: ${msg}. Refreshing seats…`);
