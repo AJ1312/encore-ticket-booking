@@ -380,8 +380,16 @@ button { cursor:pointer; }
   outline-offset: 2px;
 }
 
-/* Mobile Waitlist Alert Bell Icon */
-@media (max-width: 768px) {
+/* ── Mobile Responsive Alert Buttons (Navbar & Seat Picker) ── */
+@media (max-width: 850px) {
+  .nav-alert-text {
+    display: none !important;
+  }
+  .nav-alert-btn {
+    padding: 7px 10px !important;
+    gap: 0 !important;
+    border-radius: 999px !important;
+  }
   .waitlist-alert-text {
     display: none !important;
   }
@@ -395,4 +403,59 @@ button { cursor:pointer; }
     justify-content: center !important;
     align-items: center !important;
   }
+}
+
+/* ── Skeleton Loading Shimmer ── */
+.skeleton-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+.skeleton-stage {
+  width: 70%;
+  height: 22px;
+  background: linear-gradient(90deg, #1c1815 25%, #2a201b 50%, #1c1815 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s infinite linear;
+  border-radius: 4px;
+  border: 1px solid #3d3028;
+}
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 8px;
+  max-width: 560px;
+  width: 100%;
+}
+.skeleton-seat {
+  height: 28px;
+  background: linear-gradient(90deg, #161a1d 25%, #242b30 50%, #161a1d 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s infinite linear;
+  border-radius: 4px;
+}
+.skeleton-caption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: var(--mono);
+}
+.skeleton-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--coral);
+  animation: pulseDot 1.2s infinite ease-in-out;
+}
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(0.8); opacity: 0.5; }
+  50% { transform: scale(1.3); opacity: 1; }
 }

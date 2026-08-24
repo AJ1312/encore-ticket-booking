@@ -147,6 +147,7 @@ export function NotificationBell() {
     <div ref={menuRef} style={{ position: 'relative', display: 'inline-block' }}>
       <button
         type="button"
+        className="nav-alert-btn"
         onClick={() => setOpen(prev => !prev)}
         aria-label={`Notifications (${unreadCount} unread)`}
         style={{
@@ -165,11 +166,12 @@ export function NotificationBell() {
         }}
       >
         <Bell size={16} color="var(--coral)" style={{ animation: unreadCount > 0 ? 'pulse 2s infinite' : 'none' }} />
-        <span style={{ font: '11px var(--mono)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <span className="nav-alert-text" style={{ font: '11px var(--mono)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           Alerts
         </span>
         {unreadCount > 0 && (
           <span
+            className="nav-alert-badge"
             style={{
               background: 'var(--coral)',
               color: '#ffffff',

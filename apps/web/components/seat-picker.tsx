@@ -622,7 +622,17 @@ export function SeatPicker({ eventId }: { eventId: string }) {
       <section className="booking-area">
         <div className="map-column">
           {loading ? (
-            <div className="empty-state">{isDining ? 'Loading dining room floorplan…' : 'Loading live seat inventory…'}</div>
+            <div className="seat-canvas skeleton-loader" style={{ background: '#0e1012', border: '1px solid #282420', borderRadius: 8, padding: '36px 28px', minHeight: 440 }}>
+              <div className="skeleton-stage" />
+              <div className="skeleton-grid">
+                {Array.from({ length: 48 }).map((_, i) => (
+                  <div key={i} className="skeleton-seat" />
+                ))}
+              </div>
+              <div className="skeleton-caption">
+                <span className="skeleton-pulse" /> {isDining ? 'Loading live table reservation matrix…' : 'Loading live seat inventory…'}
+              </div>
+            </div>
           ) : error ? (
             <div className="empty-state">
               <h3>Inventory unavailable</h3>
