@@ -343,3 +343,31 @@ button { cursor:pointer; }
     border-radius: 1px !important;
   }
 }
+
+/* ── Smooth Cinematic Page Transitions & Global Polish ── */
+.page-transition-wrapper {
+  animation: pageFadeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes pageFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+::selection {
+  background: var(--coral);
+  color: #120906;
+}
+
+/* Smooth Focus Rings */
+:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
