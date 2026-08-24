@@ -271,7 +271,6 @@ export function SeatPicker({ eventId }: { eventId: string }) {
       const msg = err instanceof Error ? err.message : 'One or more seats were just held by another customer';
       setHoldError(`Hold Conflict: ${msg}. Refreshing seats…`);
       loadSeats();
-    } finally {
       setSecuringHold(false);
     }
   }
