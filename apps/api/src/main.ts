@@ -884,11 +884,13 @@ export class AppController {
           eventTitle: events.title,
           venue: venues.name,
           city: venues.city,
+          customerName: users.name,
         })
         .from(bookings)
         .innerJoin(shows, eq(shows.id, bookings.showId))
         .innerJoin(events, eq(events.id, shows.eventId))
         .innerJoin(venues, eq(venues.id, shows.venueId))
+        .innerJoin(users, eq(users.id, bookings.userId))
         .where(eq(bookings.bookingRef, bookingRef))
         .limit(1)
     )[0];

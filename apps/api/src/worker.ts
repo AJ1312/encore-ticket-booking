@@ -87,7 +87,33 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
   }
 
   if (job.type === 'email_notification' || job.type === 'booking_confirmation') {
-    const payload = job.payload as { to?: string; subject?: string; bookingRef?: string; eventTitle?: string; html?: string; template?: string; showId?: string };
+    let payload = job.payload as any;
+    
+    // For booking_confirmation, we only get { bookingId }, so we must fetch the details
+    if (job.type === 'booking_confirmation' && payload.bookingId) {
+      const details = (await db.select({
+        email: users.email,
+        bookingRef: bookings.bookingRef,
+        eventTitle: events.title
+      })
+      .from(bookings)
+      .innerJoin(users, eq(users.id, bookings.userId))
+      .innerJoin(shows, eq(shows.id, bookings.showId))
+      .innerJoin(events, eq(events.id, shows.eventId))
+      .where(eq(bookings.id, payload.bookingId))
+      .limit(1))[0];
+      
+      if (details) {
+        payload = {
+          to: details.email,
+          subject: `Encore Pass Ready — ${details.bookingRef}`,
+          bookingRef: details.bookingRef,
+          eventTitle: details.eventTitle,
+          template: 'booking_confirmed'
+        };
+      }
+    }
+
     const to = payload.to || 'customer@encore.local';
     const subject = payload.subject || `Encore Pass Ready — ${payload.bookingRef || 'Booking Confirmed'}`;
     
