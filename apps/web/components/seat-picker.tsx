@@ -8,6 +8,7 @@ import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 import { getEvent } from '@/lib/events';
 import { apiJson, API_URL } from '@/lib/api';
+import { signIn, signUp } from '@/lib/auth';
 import { io } from 'socket.io-client';
 import type { Session } from '@encore/shared';
 
@@ -250,27 +251,11 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
     setAuthError('');
     setAuthSubmitting(true);
     try {
-      let activeUser: Session;
-      if (authMode === 'signin') {
-        const res = await apiJson<{ session?: Session; user?: Session }>('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({ email: authEmail, password: authPassword }),
-        });
-        activeUser = (res.session || res.user || { id: 'usr-1', name: authEmail.split('@')[0], email: authEmail, role: 'customer' }) as Session;
-      } else {
-        const res = await apiJson<{ session?: Session; user?: Session }>('/auth/register', {
-          method: 'POST',
-          body: JSON.stringify({ name: authName || authEmail.split('@')[0], email: authEmail, password: authPassword }),
-        });
-        activeUser = (res.session || res.user || { id: 'usr-1', name: authName || authEmail.split('@')[0], email: authEmail, role: 'customer' }) as Session;
-      }
+      const activeUser = authMode === 'signin'
+        ? await signIn(authEmail, authPassword)
+        : await signUp(authName || authEmail.split('@')[0], authEmail, authPassword);
+      
       setUser(activeUser);
-      try {
-        window.localStorage.setItem('encore_profile', JSON.stringify(activeUser));
-        window.dispatchEvent(new CustomEvent('profile-updated', { detail: activeUser }));
-      } catch {
-        // ignore
-      }
       setAuthModalOpen(false);
       // Proceed directly to hold
       void executeHoldAndProceed(selected);
