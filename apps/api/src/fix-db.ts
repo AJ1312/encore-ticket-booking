@@ -133,11 +133,35 @@ const cityShows = {
 
 export async function fixDb() {
   console.log('Fixing DB...');
+  const defaultOrganiserId = '22222222-2222-4222-8222-222222222222';
   for (const [showId, cfg] of Object.entries(cityShows)) {
     try {
-      await db.update(events).set({ title: cfg.eventTitle, posterUrl: cfg.posterUrl }).where(eq(events.id, cfg.eventId));
+      await db.insert(venues).values({
+        id: cfg.venueId,
+        name: cfg.venueName,
+        city: cfg.city,
+        address: `${cfg.venueName}, ${cfg.city}`,
+        timezone: 'Asia/Kolkata',
+      }).onConflictDoNothing();
       await db.update(venues).set({ name: cfg.venueName, city: cfg.city }).where(eq(venues.id, cfg.venueId));
-      await db.update(shows).set({ startsAt: cfg.startsAt }).where(eq(shows.id, showId));
+
+      await db.insert(events).values({
+        id: cfg.eventId,
+        organiserId: defaultOrganiserId,
+        title: cfg.eventTitle,
+        description: 'An intimate live set under the city lights.',
+        type: 'concert',
+        posterUrl: cfg.posterUrl,
+      }).onConflictDoNothing();
+      await db.update(events).set({ title: cfg.eventTitle, posterUrl: cfg.posterUrl }).where(eq(events.id, cfg.eventId));
+
+      await db.insert(shows).values({
+        id: showId,
+        eventId: cfg.eventId,
+        venueId: cfg.venueId,
+        startsAt: cfg.startsAt,
+      }).onConflictDoNothing();
+      await db.update(shows).set({ eventId: cfg.eventId, venueId: cfg.venueId, startsAt: cfg.startsAt }).where(eq(shows.id, showId));
     } catch (e) {
       console.error(e);
     }

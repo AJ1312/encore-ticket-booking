@@ -340,11 +340,13 @@ async function ensureShowSeats(showId: string) {
       posterUrl: cfg.posterUrl,
     }).onConflictDoNothing();
 
-    // Check if show already exists
+    // Check if show already exists and update eventId / venueId if mismatch
     const existingShow = (await db.select().from(shows).where(eq(shows.id, showId)).limit(1))[0];
-    const venueIdToUse = existingShow ? existingShow.venueId : cfg.venueId;
+    const venueIdToUse = cfg.venueId;
 
-    if (!existingShow) {
+    if (existingShow) {
+      await db.update(shows).set({ eventId: cfg.eventId, venueId: cfg.venueId }).where(eq(shows.id, showId));
+    } else {
       await db.insert(shows).values({
         id: showId,
         eventId: cfg.eventId,
