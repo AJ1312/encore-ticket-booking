@@ -8,7 +8,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { apiJson } from '@/lib/api';
 import { QRCodeDisplay } from '@/components/qr-code';
-import { getEvent } from '@/lib/events';
+
 
 function ConfirmationContent() {
   const params = useParams<{ bookingRef: string }>();
@@ -16,7 +16,6 @@ function ConfirmationContent() {
   const rawToken = searchParams.get('token');
   const showIdQuery = searchParams.get('showId');
   const ref = params?.bookingRef || 'ENC-55F9CA50';
-  const fallbackEvent = showIdQuery ? getEvent(showIdQuery) : undefined;
 
   const [booking, setBooking] = useState<{
     bookingRef: string;
@@ -31,10 +30,10 @@ function ConfirmationContent() {
   }>({
     bookingRef: ref,
     totalPaise: 0,
-    eventTitle: fallbackEvent ? fallbackEvent.title : 'Loading event details...',
-    venue: fallbackEvent ? fallbackEvent.venue : 'Loading venue...',
-    city: fallbackEvent ? fallbackEvent.city : '',
-    startsAt: fallbackEvent ? undefined : undefined,
+    eventTitle: 'Loading event details...',
+    venue: 'Loading venue...',
+    city: '',
+    startsAt: undefined,
     customerName: 'Loading attendee...',
     qrToken: rawToken || undefined,
     seats: [],
