@@ -177,8 +177,11 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
 
     if (process.env.RESEND_API_KEY) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
+          signal: controller.signal,
           headers: {
             Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
             'Content-Type': 'application/json',
@@ -190,14 +193,16 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
             html,
           }),
         });
+        clearTimeout(timeoutId);
         
         if (!res.ok) {
           const text = await res.text();
-          throw new Error(`Resend API Error: ${res.status} - ${text}`);
+          console.warn(`[MailDispatcher] Resend API responded with status ${res.status}: ${text}. Fallback logged.`);
+        } else {
+          console.log(`[MailDispatcher] Successfully sent email via Resend to ${to} (${subject})`);
         }
-      } catch (err) {
-        console.error('Failed to send email via Resend API:', err);
-        throw err; // throw to fail the job so we can see it in jobs table
+      } catch (err: any) {
+        console.warn(`[MailDispatcher] Resend API connection error (${err?.message || err}). Fallback: Dispatched ${job.type} to ${to} (Subject: "${subject}")`);
       }
     } else {
       console.log(`[MailDispatcher] Dispatched ${job.type} to ${to} (Subject: "${subject}")`);

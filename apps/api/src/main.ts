@@ -1735,7 +1735,13 @@ export class AppController {
     return { ok: true };
   }
 
-  @Roles('admin')
+  @Get('venues')
+  async listVenues() {
+    const rows = await db.select().from(venues).orderBy(asc(venues.name));
+    return { venues: rows };
+  }
+
+  @Roles('organiser', 'admin')
   @Get('admin/venues')
   async adminListVenues() {
     const rows = await db.select().from(venues).orderBy(desc(venues.createdAt));

@@ -1,6 +1,6 @@
 import { integer, jsonb, pgEnum, pgTable, timestamp, uniqueIndex, uuid, text, boolean, index } from 'drizzle-orm/pg-core';
 export const roleEnum=pgEnum('user_role',['customer','organiser','admin']);
-export const eventTypeEnum=pgEnum('event_type',['movie','concert','comedy','other']);
+export const eventTypeEnum=pgEnum('event_type',['movie','concert','comedy','dining','other']);
 export const seatStateEnum=pgEnum('seat_state',['available','held','booked','blocked']);
 export const bookingStateEnum=pgEnum('booking_state',['confirmed','cancelled']);
 export const jobStateEnum=pgEnum('job_state',['pending','processing','completed','failed']);

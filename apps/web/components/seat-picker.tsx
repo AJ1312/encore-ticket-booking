@@ -91,45 +91,77 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Structured dining floorplan tables
-  const diningTables: DiningTable[] = useMemo(() => {
-    if (!isDining) return [];
-    return [
-      { id: seats[0]?.id || 't1', tableLabel: 'Table T1', capacity: 2, category: 'Table for 2', section: 'Window Booth', pricePaise: seats[0]?.pricePaise || 180000, status: seats[0]?.status || 'available' },
-      { id: seats[1]?.id || 't2', tableLabel: 'Table T2', capacity: 2, category: 'Table for 2', section: 'Window Booth', pricePaise: seats[1]?.pricePaise || 180000, status: seats[1]?.status || 'available' },
-      { id: seats[2]?.id || 't3', tableLabel: 'Table T3', capacity: 2, category: 'Table for 2', section: 'Garden Patio', pricePaise: seats[2]?.pricePaise || 180000, status: seats[2]?.status || 'available' },
-      { id: seats[3]?.id || 't4', tableLabel: 'Table T4', capacity: 2, category: 'Table for 2', section: 'Garden Patio', pricePaise: seats[3]?.pricePaise || 180000, status: seats[3]?.status || 'available' },
-      { id: seats[4]?.id || 't5', tableLabel: 'Table T5', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: seats[4]?.pricePaise || 360000, status: seats[4]?.status || 'available' },
-      { id: seats[5]?.id || 't6', tableLabel: 'Table T6', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: seats[5]?.pricePaise || 360000, status: seats[5]?.status || 'available' },
-      { id: seats[6]?.id || 't7', tableLabel: 'Table T7', capacity: 4, category: 'Table for 4', section: 'Main Dining Room', pricePaise: seats[6]?.pricePaise || 360000, status: seats[6]?.status || 'available' },
-      { id: seats[7]?.id || 't8', tableLabel: 'Table T8', capacity: 4, category: 'Table for 4', section: 'Vinyl Lounge', pricePaise: seats[7]?.pricePaise || 360000, status: seats[7]?.status || 'available' },
-      { id: seats[8]?.id || 't9', tableLabel: 'Table T9', capacity: 4, category: 'Table for 4', section: 'Vinyl Lounge', pricePaise: seats[8]?.pricePaise || 360000, status: seats[8]?.status || 'available' },
-      { id: seats[9]?.id || 't10', tableLabel: 'Table T10', capacity: 6, category: 'Table for 6', section: 'Chef’s Banquette', pricePaise: seats[9]?.pricePaise || 540000, status: seats[9]?.status || 'available' },
-      { id: seats[10]?.id || 't11', tableLabel: 'Table T11', capacity: 6, category: 'Table for 6', section: 'Chef’s Banquette', pricePaise: seats[10]?.pricePaise || 540000, status: seats[10]?.status || 'available' },
-      { id: seats[11]?.id || 't12', tableLabel: 'Table T12', capacity: 6, category: 'Table for 6', section: 'Private Alcove', pricePaise: seats[11]?.pricePaise || 540000, status: seats[11]?.status || 'available' },
-    ];
-  }, [isDining, seats]);
+  // Dynamic 7-day calendar generated from today's date
+  const upcomingDates = useMemo(() => {
+    const list: { label: string; shortDay: string; dateNum: string; iso: string }[] = [];
+    const today = new Date();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const dayLabel = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' });
+      const dateNum = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+      list.push({
+        label: `${dayLabel}, ${dateNum}`,
+        shortDay: dayLabel,
+        dateNum,
+        iso: d.toISOString().split('T')[0],
+      });
+    }
+    return list;
+  }, []);
+
+  const diningTimes = useMemo(() => [
+    { time: '12:30 PM', label: 'Lunch', isPopular: false },
+    { time: '1:30 PM', label: 'Lunch', isPopular: false },
+    { time: '7:00 PM', label: 'Dinner', isPopular: false },
+    { time: '7:45 PM', label: 'Prime', isPopular: true },
+    { time: '8:30 PM', label: 'Dinner', isPopular: true },
+    { time: '9:15 PM', label: 'Late', isPopular: false },
+  ], []);
+
+  const diningAreas = ['Main Dining Room', 'Window View Booth', 'Garden Patio', 'Chef’s Table'];
+
+  // Dynamic Dining Reservation State
+  const [diningGuests, setDiningGuests] = useState(2);
+  const [diningDate, setDiningDate] = useState(() => {
+    const today = new Date();
+    return `Today, ${today.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}`;
+  });
+  const [diningTime, setDiningTime] = useState('7:45 PM');
+  const [diningArea, setDiningArea] = useState('Main Dining Room');
+
+  const availableSeats = useMemo(() => {
+    return seats.filter(s => s.status === 'available');
+  }, [seats]);
+
+  const diningAvailableCount = useMemo(() => {
+    if (!isDining) return 0;
+    return Math.max(0, Math.floor(availableSeats.length / Math.max(1, diningGuests)));
+  }, [isDining, availableSeats, diningGuests]);
+
+  useEffect(() => {
+    if (!isDining) return;
+    if (availableSeats.length >= diningGuests) {
+      setSelected(availableSeats.slice(0, diningGuests).map(s => s.id));
+    } else {
+      setSelected([]);
+    }
+  }, [isDining, availableSeats, diningGuests, diningTime, diningDate]);
 
   const total = useMemo(() => {
     if (isDining) {
-      return selected.reduce((sum, id) => {
-        const table = diningTables.find(t => t.id === id);
-        return sum + (table?.pricePaise || 180000);
-      }, 0);
+      return diningGuests * 90000; // ₹900 per person cover deposit
     }
     return selected.reduce((sum, id) => {
       const seat = seats.find(s => s.id === id);
       return sum + (seat?.pricePaise || 149900);
     }, 0);
-  }, [isDining, selected, seats, diningTables]);
+  }, [isDining, diningGuests, selected, seats]);
 
   const totalDiners = useMemo(() => {
-    if (!isDining) return selected.length;
-    return selected.reduce((sum, id) => {
-      const table = diningTables.find(t => t.id === id);
-      return sum + (table?.capacity || 2);
-    }, 0);
-  }, [isDining, selected, diningTables]);
+    if (isDining) return diningGuests;
+    return selected.length;
+  }, [isDining, diningGuests, selected]);
 
   function loadSeats() {
     if (!showId) {
@@ -212,21 +244,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
 
   function toggle(id: string) {
     setHoldError('');
-    if (isDining) {
-      const table = diningTables.find(t => t.id === id);
-      if (!table) return;
-      if (table.status === 'booked' || table.status === 'blocked' || table.status === 'sold' || table.status === 'held') {
-        setWaitlistCategory(table.category);
-        setWaitlistOpen(true);
-        return;
-      }
-      setSelected(current =>
-        current.includes(id) ? current.filter(val => val !== id) : [...current, id]
-      );
-      return;
-    }
-
-    const seat = seats.find(value => value.id === id);
+    const seat = seats.find(s => s.id === id);
     if (!seat) return;
     if (seat.status === 'booked' || seat.status === 'blocked' || seat.status === 'sold' || seat.status === 'held') {
       setWaitlistCategory(seat.category || 'Standard');
@@ -235,7 +253,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     }
     setSelected(current =>
       current.includes(id)
-        ? current.filter(value => value !== id)
+        ? current.filter(item => item !== id)
         : current.length < 8
         ? [...current, id]
         : current
@@ -314,10 +332,6 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     }
     void executeHoldAndProceed(selected);
   }
-
-  const table2Count = diningTables.filter(t => t.capacity === 2 && t.status === 'available').length;
-  const table4Count = diningTables.filter(t => t.capacity === 4 && t.status === 'available').length;
-  const table6Count = diningTables.filter(t => t.capacity === 6 && t.status === 'available').length;
 
   if (loading) {
     return (
@@ -413,84 +427,49 @@ export function SeatPicker({ eventId }: { eventId: string }) {
         {/* Pricing & Party Size Filter Chips */}
         {isDining ? (
           <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setFilterCategory(null)}
+            <div
               style={{
-                padding: '10px 16px',
-                background: filterCategory === null ? '#2d221c' : '#191b1e',
-                border: `1px solid ${filterCategory === null ? 'var(--peach)' : '#332d29'}`,
+                padding: '8px 16px',
+                background: '#191c20',
+                border: '1px solid #3d342f',
                 borderRadius: 6,
-                color: filterCategory === null ? 'var(--paper)' : 'var(--muted)',
-                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: 'var(--peach)',
                 font: '12px var(--mono)',
               }}
             >
-              All Tables (12)
-            </button>
+              <Utensils size={14} color="var(--coral)" />
+              <span>Instant Confirmation · Reserve Party Size & Time</span>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setFilterCategory(prev => (prev === '2' ? null : '2'))}
+            <div
               style={{
-                padding: '10px 18px',
-                background: filterCategory === '2' ? '#3d241c' : '#231815',
-                border: `2px solid #e07a5f`,
+                padding: '8px 16px',
+                background: diningAvailableCount <= 3 ? '#2d1815' : '#142318',
+                border: `1px solid ${diningAvailableCount <= 3 ? '#632d25' : '#2b4738'}`,
                 borderRadius: 6,
+                color: diningAvailableCount <= 3 ? '#ff927e' : 'var(--green)',
+                font: '12px var(--mono)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                cursor: 'pointer',
+                gap: 8,
               }}
             >
-              <Users size={16} color="#e07a5f" />
-              <strong style={{ font: '13px var(--sans)', color: '#ffd8cc' }}>Table for 2 · ₹1,800</strong>
-              <span style={{ font: '11px var(--mono)', color: '#e07a5f' }}>({table2Count} available)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterCategory(prev => (prev === '4' ? null : '4'))}
-              style={{
-                padding: '10px 18px',
-                background: filterCategory === '4' ? '#1c3624' : '#142318',
-                border: `2px solid #3a7750`,
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                cursor: 'pointer',
-              }}
-            >
-              <Users size={16} color="#52b788" />
-              <strong style={{ font: '13px var(--sans)', color: '#d8f3dc' }}>Table for 4 · ₹3,600</strong>
-              <span style={{ font: '11px var(--mono)', color: '#52b788' }}>({table4Count} available)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterCategory(prev => (prev === '6' ? null : '6'))}
-              style={{
-                padding: '10px 18px',
-                background: filterCategory === '6' ? '#1c2836' : '#131b24',
-                border: `2px solid #415a77`,
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                cursor: 'pointer',
-              }}
-            >
-              <Users size={16} color="#748cab" />
-              <strong style={{ font: '13px var(--sans)', color: '#e0e1dd' }}>Table for 6 · ₹5,400</strong>
-              <span style={{ font: '11px var(--mono)', color: '#748cab' }}>({table6Count} available)</span>
-            </button>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: diningAvailableCount <= 3 ? '#ff6b35' : '#52b788', display: 'inline-block' }} />
+              <span>
+                {diningAvailableCount > 0
+                  ? `⚡ Limited Seating: ${diningAvailableCount} ${diningAvailableCount === 1 ? 'table' : 'tables'} available`
+                  : '⚠️ High Demand: Fully booked for this slot'}
+              </span>
+            </div>
 
             <button
               type="button"
               onClick={() => setWaitlistOpen(true)}
               style={{
-                padding: '11px 20px',
+                padding: '9px 18px',
                 background: 'linear-gradient(135deg, #2b1812 0%, #1c1411 100%)',
                 border: '1.5px solid var(--coral)',
                 borderRadius: 6,
@@ -499,10 +478,11 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                 gap: 8,
                 cursor: 'pointer',
                 color: 'var(--peach)',
+                marginLeft: 'auto',
                 boxShadow: '0 4px 16px rgba(224, 122, 95, 0.25)',
               }}
             >
-              <Bell size={15} color="var(--coral)" />
+              <Bell size={14} color="var(--coral)" />
               <strong style={{ font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Notify When Tables Open
               </strong>
@@ -599,86 +579,186 @@ export function SeatPicker({ eventId }: { eventId: string }) {
               <p>{error}</p>
             </div>
           ) : isDining ? (
-            /* ── RESTAURANT DINING FLOORPLAN ── */
-            <div className="seat-canvas" style={{ background: '#0e1012', border: '1px solid #23272d', borderRadius: 8, padding: 32 }}>
-              <div style={{ textAlign: 'center', marginBottom: 28 }}>
-                <span style={{ letterSpacing: '0.3em', fontWeight: 700, fontSize: 12, color: 'var(--peach)', textTransform: 'uppercase' }}>
-                  KITCHEN & VINYL RECORD BAR
-                </span>
-                <div style={{ width: '50%', height: 2, background: 'linear-gradient(90deg, transparent, var(--peach), transparent)', margin: '8px auto 0' }} />
+            /* ── RESTAURANT / HOTEL DINING RESERVATION SELECTOR ── */
+            <div className="seat-canvas" style={{ background: '#0e1012', border: '1px solid #282420', borderRadius: 8, padding: '32px 28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, borderBottom: '1px solid #231e1a', paddingBottom: 20, flexWrap: 'wrap', gap: 14 }}>
+                <div>
+                  <span className="eyebrow" style={{ color: 'var(--coral)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                    <Utensils size={13} /> Table & Experience Reservation
+                  </span>
+                  <h3 style={{ font: '30px var(--serif)', color: 'var(--paper)', margin: '4px 0 2px' }}>
+                    Select Guests & Dining Time
+                  </h3>
+                  <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
+                    Fast & hassle-free table reservations. Direct instant confirmation.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#181513', padding: '8px 16px', borderRadius: 6, border: '1px solid #3d3028' }}>
+                  <Users size={16} color="var(--peach)" />
+                  <span style={{ font: '13px var(--mono)', color: 'var(--paper)' }}>
+                    Party of <strong>{diningGuests}</strong>
+                  </span>
+                </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 18 }}>
-                {diningTables
-                  .filter(table => !filterCategory || table.capacity.toString() === filterCategory)
-                  .map(table => {
-                    const isSelected = selected.includes(table.id);
-                    const isHeldOrBooked = table.status === 'booked' || table.status === 'sold' || table.status === 'blocked' || table.status === 'held';
+              {/* 1. Party Size / Number of Guests */}
+              <div style={{ marginBottom: 28 }}>
+                <label style={{ display: 'block', color: 'var(--paper)', font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+                  1. How many guests? (Party Size)
+                </label>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {[1, 2, 3, 4, 5, 6, 8].map(num => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setDiningGuests(num)}
+                      style={{
+                        padding: '12px 22px',
+                        background: diningGuests === num ? 'var(--coral)' : '#181b1e',
+                        border: `1.5px solid ${diningGuests === num ? 'var(--peach)' : '#332d29'}`,
+                        borderRadius: 6,
+                        color: diningGuests === num ? '#ffffff' : 'var(--paper)',
+                        fontWeight: diningGuests === num ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 14,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Users size={15} color={diningGuests === num ? '#ffffff' : 'var(--peach)'} />
+                      <span>{num} {num === 1 ? 'Guest' : 'Guests'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                    let tableBorder = table.capacity === 2 ? '#e07a5f' : table.capacity === 4 ? '#52b788' : '#748cab';
-                    let tableBg = table.capacity === 2 ? '#2b1b16' : table.capacity === 4 ? '#16271c' : '#141d26';
-
-                    if (isSelected) {
-                      tableBg = 'var(--coral)';
-                      tableBorder = 'var(--peach)';
-                    } else if (isHeldOrBooked) {
-                      tableBg = '#191b1e';
-                      tableBorder = '#282b30';
-                    }
-
+              {/* 2. Next 7 Days Date Selector */}
+              <div style={{ marginBottom: 28 }}>
+                <label style={{ display: 'block', color: 'var(--paper)', font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+                  2. Select Date (Next 7 Days)
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+                  {upcomingDates.map(d => {
+                    const isSelected = diningDate === d.label;
                     return (
                       <button
-                        key={table.id}
+                        key={d.iso}
                         type="button"
-                        aria-label={`${table.tableLabel}, ${table.capacity} Diners, ${table.section} ${isHeldOrBooked ? '(Held/Sold - click for waitlist)' : ''}`}
-                        aria-pressed={isSelected}
-                        onClick={() => toggle(table.id)}
+                        onClick={() => setDiningDate(d.label)}
                         style={{
-                          background: tableBg,
-                          border: `2px solid ${tableBorder}`,
-                          borderRadius: table.capacity === 2 ? '50%' : table.capacity === 6 ? '12px' : '8px',
-                          padding: '24px 18px',
+                          padding: '12px 10px',
+                          background: isSelected ? '#2b1b16' : '#14181a',
+                          border: `1.5px solid ${isSelected ? 'var(--coral)' : '#2d2824'}`,
+                          borderRadius: 6,
+                          textAlign: 'center',
+                          cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                          cursor: 'pointer',
-                          opacity: isHeldOrBooked && !isSelected ? 0.35 : 1,
-                          transform: isSelected ? 'scale(1.05)' : undefined,
-                          boxShadow: isSelected ? '0 0 18px var(--coral)' : undefined,
-                          transition: 'all 0.15s',
+                          gap: 4,
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        <Utensils size={18} color={isSelected ? '#fff' : tableBorder} />
-                        <strong style={{ font: '16px var(--mono)', color: isSelected ? '#fff' : 'var(--paper)' }}>
-                          {table.tableLabel}
-                        </strong>
-                        <span style={{ fontSize: 11, font: '10px var(--mono)', color: isSelected ? '#ffd8cc' : '#c0b6af' }}>
-                          {table.capacity} Diners · {table.section}
+                        <span style={{ fontSize: 11, font: '10px var(--mono)', textTransform: 'uppercase', color: isSelected ? 'var(--peach)' : 'var(--muted)' }}>
+                          {d.shortDay}
                         </span>
-                        <b style={{ fontSize: 13, color: isSelected ? '#fff' : 'var(--paper)', marginTop: 2 }}>
-                          {table.status === 'held'
-                            ? 'On Hold (Notify)'
-                            : isHeldOrBooked
-                            ? 'Reserved (Notify)'
-                            : `₹${Math.round(table.pricePaise / 100).toLocaleString('en-IN')}`}
-                        </b>
+                        <strong style={{ font: '15px var(--sans)', color: isSelected ? '#ffffff' : 'var(--paper)' }}>
+                          {d.dateNum}
+                        </strong>
                       </button>
                     );
                   })}
+                </div>
               </div>
 
-              <div className="seat-legend" style={{ marginTop: 32, justifyContent: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#e07a5f' }} /> Table for 2</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#52b788' }} /> Table for 4</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#748cab' }} /> Table for 6</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i className="selected-dot" /> Selected ({selected.length} Tables)</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><i style={{ background: '#282b30' }} /> Reserved / Held</span>
+              {/* 3. Dining Time Slots */}
+              <div style={{ marginBottom: 28 }}>
+                <label style={{ display: 'block', color: 'var(--paper)', font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+                  3. Select Seating Time
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                  {diningTimes.map(t => {
+                    const isSelected = diningTime === t.time;
+                    return (
+                      <button
+                        key={t.time}
+                        type="button"
+                        onClick={() => setDiningTime(t.time)}
+                        style={{
+                          padding: '14px 12px',
+                          background: isSelected ? '#1b2c1f' : '#14181a',
+                          border: `1.5px solid ${isSelected ? 'var(--green)' : '#2d2824'}`,
+                          borderRadius: 6,
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Clock size={14} color={isSelected ? 'var(--green)' : 'var(--muted)'} />
+                        <strong style={{ font: '14px var(--mono)', color: isSelected ? '#d8f3dc' : 'var(--paper)' }}>
+                          {t.time}
+                        </strong>
+                        {t.isPopular && (
+                          <span style={{ fontSize: 9, font: '9px var(--mono)', padding: '2px 5px', borderRadius: 3, background: 'rgba(224,122,95,0.2)', color: 'var(--peach)' }}>
+                            Prime
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <p className="seat-helper" style={{ textAlign: 'center', marginTop: 14 }}>
-                <Info size={14} /> You can select multiple tables for larger groups or parties. Real-time hold verified every second.
-              </p>
+
+              {/* 4. Dining Seating Area Preference */}
+              <div>
+                <label style={{ display: 'block', color: 'var(--paper)', font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+                  4. Seating Ambience & Area
+                </label>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {diningAreas.map(area => {
+                    const isSelected = diningArea === area;
+                    return (
+                      <button
+                        key={area}
+                        type="button"
+                        onClick={() => setDiningArea(area)}
+                        style={{
+                          padding: '10px 18px',
+                          background: isSelected ? '#251b18' : '#14181a',
+                          border: `1.5px solid ${isSelected ? 'var(--peach)' : '#2d2824'}`,
+                          borderRadius: 6,
+                          color: isSelected ? 'var(--paper)' : 'var(--muted)',
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <Check size={14} color={isSelected ? 'var(--coral)' : 'transparent'} />
+                        <span>{area}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Live Status Note */}
+              <div style={{ marginTop: 28, padding: 14, background: '#151719', borderRadius: 6, border: '1px solid #2d2621', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <span style={{ font: '12px var(--sans)', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Info size={15} color="var(--peach)" />
+                  Instant Table Lock: Your table is exclusively held for 15 minutes upon continuing to checkout.
+                </span>
+                <span style={{ font: '11px var(--mono)', color: diningAvailableCount > 0 ? 'var(--green)' : '#ff927e' }}>
+                  {diningAvailableCount > 0 ? `✓ ${diningAvailableCount} Tables Available Now` : '⚠️ Fully Booked for this Slot'}
+                </span>
+              </div>
             </div>
           ) : (
             /* ── THEATRE / CONCERT SEATING MAP ── */
@@ -793,16 +873,18 @@ export function SeatPicker({ eventId }: { eventId: string }) {
         <aside className="booking-summary">
           <span className="eyebrow">{isDining ? 'Dining Reservation' : 'Your evening'}</span>
           <h2>{eventMeta.title}</h2>
-          <p className="summary-meta">{eventMeta.venue}, {eventMeta.city}<br />{eventMeta.date} 2026 · {eventMeta.time}</p>
+          <p className="summary-meta">
+            {eventMeta.venue}, {eventMeta.city}
+            <br />
+            {isDining ? `${diningDate} · ${diningTime}` : `${eventMeta.date} 2026 · ${eventMeta.time}`}
+          </p>
           <div className="summary-rule" />
           <div className="summary-seats">
             <div>
-              <span>{isDining ? `Reserved Tables (${selected.length})` : `Selected seats (${selected.length}/8)`}</span>
+              <span>{isDining ? 'Party Size' : `Selected seats (${selected.length}/8)`}</span>
               <b style={{ color: selected.length ? 'var(--peach)' : undefined }}>
                 {isDining
-                  ? selected.length
-                    ? selected.map(id => diningTables.find(t => t.id === id)?.tableLabel || id).join(', ')
-                    : 'None selected'
+                  ? `${diningGuests} ${diningGuests === 1 ? 'Guest' : 'Guests'} (${diningArea})`
                   : selected.length
                   ? selected.map(id => {
                       const seat = seats.find(v => v.id === id);
@@ -813,12 +895,12 @@ export function SeatPicker({ eventId }: { eventId: string }) {
             </div>
             {isDining && (
               <div>
-                <span>Party Size Capacity</span>
-                <b style={{ color: 'var(--paper)' }}>{totalDiners} Guests</b>
+                <span>Seating & Time</span>
+                <b style={{ color: 'var(--paper)' }}>{diningTime} · {diningDate}</b>
               </div>
             )}
             <div>
-              <span>Total amount</span>
+              <span>{isDining ? 'Cover / Deposit' : 'Total amount'}</span>
               <b>₹{Math.round(total / 100).toLocaleString('en-IN')}</b>
             </div>
           </div>
@@ -827,10 +909,10 @@ export function SeatPicker({ eventId }: { eventId: string }) {
             disabled={!selected.length || securingHold}
             className={`coral-button summary-cta ${selected.length ? '' : 'disabled'}`}
           >
-            <Check size={16} /> {securingHold ? 'Locking Hold on Server…' : selected.length ? (isDining ? 'Continue to table checkout' : 'Continue to checkout') : (isDining ? 'Select a table' : 'Select a seat')} <ChevronRight size={16} />
+            <Check size={16} /> {securingHold ? 'Locking Hold on Server…' : selected.length ? (isDining ? `Reserve for ${diningGuests} ${diningGuests === 1 ? 'Guest' : 'Guests'}` : 'Continue to checkout') : (isDining ? 'Select party size' : 'Select a seat')} <ChevronRight size={16} />
           </button>
           <p className="summary-foot">
-            {isDining ? 'Tables are held exclusively for 15 minutes upon confirmation.' : 'Seats are held atomically on the server for 15 minutes.'}
+            {isDining ? 'Table is held exclusively for 15 minutes upon continuing.' : 'Seats are held atomically on the server for 15 minutes.'}
           </p>
         </aside>
       </section>
