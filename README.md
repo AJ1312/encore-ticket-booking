@@ -3,7 +3,7 @@
 Encore is a high-performance, resilient ticket booking platform designed for high-concurrency environments. It solves the critical "FairHold" problem—preventing double-bookings when thousands of users attempt to book the exact same seat simultaneously, while strictly enforcing hold expirations, waitlist auto-allocations, and robust payments.
 
 ## Application URLs
-- **Live Site (Frontend)**: [https://tickets.ajiteshsharma.dev](https://tickets.ajiteshsharma.dev)
+- **Live Site**: [https://tickets.ajiteshsharma.dev](https://tickets.ajiteshsharma.dev)
 - **Backend API (Health Check)**: [https://encore-ticket-booking.onrender.com/api/health](https://encore-ticket-booking.onrender.com/api/health)
 
 ---
