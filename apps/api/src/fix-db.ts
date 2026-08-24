@@ -1,4 +1,3 @@
-import { config } from "dotenv"; config({ path: "../../.env" });
 import { db } from './db/client';
 import { events, shows, venues } from './db/schema';
 import { eq } from 'drizzle-orm';
@@ -146,4 +145,3 @@ export async function fixDb() {
   console.log('DB fixed!');
 }
 
-fixDb().then(() => process.exit(0));
