@@ -14,7 +14,7 @@ export function generateStaticParams() {
 export default async function EventDetailPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   
-  let event = getEvent(eventId);
+  let event: any = getEvent(eventId);
   let showId = event?.showId;
 
   if (!event || event.slug !== eventId) {

@@ -8,6 +8,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { apiJson } from '@/lib/api';
 import { QRCodeDisplay } from '@/components/qr-code';
+import { AuthForm } from '@/components/auth-form';
 
 
 function ConfirmationContent() {
@@ -67,10 +68,45 @@ function ConfirmationContent() {
     }
   }, [ref, rawToken]);
 
+  const [user, setUser] = useState<any>(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    apiJson<{ session?: any }>('/auth/me')
+      .then(res => {
+        if (isMounted) {
+          if (res.session) setUser(res.session);
+          setSessionLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setSessionLoaded(true);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
   const qrPayload = booking.qrToken || ref;
   const verifyUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/verify/${qrPayload}`
     : `https://encore-ticket-booking-web.vercel.app/verify/${qrPayload}`;
+
+  if (sessionLoaded && !user) {
+    return (
+      <main className="confirmation-page" style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+        <PortalNav />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ maxWidth: 400, width: '100%', background: 'var(--bg-elevated)', borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden' }}>
+            <div style={{ padding: '24px 24px 0', textAlign: 'center' }}>
+              <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 500 }}>Ticket Awaiting</h2>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 15 }}>Please log in to view your secure event pass.</p>
+            </div>
+            <AuthForm mode="login" />
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="confirmation-page" style={{ minHeight: '100vh', background: 'var(--bg)' }}>

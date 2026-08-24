@@ -238,49 +238,44 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
 }
 
 export async function allocateWaitlist(tx: any, showId: string, seatIds: string[]) {
+  const categories = new Set<string>();
   for (const showSeatId of seatIds) {
     const seat = (await tx.select({ category: seats.category })
       .from(showSeats)
       .innerJoin(seats, eq(seats.id, showSeats.seatId))
       .where(and(eq(showSeats.id, showSeatId), eq(showSeats.showId, showId), eq(showSeats.status, 'available')))
       .limit(1))[0];
-    if (!seat) continue;
+    if (seat) categories.add(seat.category);
+  }
 
-    const next = (await tx.select({ id: waitlistEntries.id, userId: waitlistEntries.userId })
+  if (categories.size === 0) return;
+
+  const eventDetails = (await tx.select({ title: events.title }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, showId)).limit(1))[0];
+
+  for (const category of categories) {
+    const waitingUsers = await tx.select({ id: waitlistEntries.id, userId: waitlistEntries.userId, email: users.email })
       .from(waitlistEntries)
-      .where(and(eq(waitlistEntries.showId, showId), eq(waitlistEntries.category, seat.category), eq(waitlistEntries.status, 'waiting')))
-      .orderBy(asc(waitlistEntries.createdAt))
-      .for('update', { skipLocked: true })
-      .limit(1))[0];
-    if (!next) continue;
+      .innerJoin(users, eq(users.id, waitlistEntries.userId))
+      .where(and(eq(waitlistEntries.showId, showId), eq(waitlistEntries.category, category), eq(waitlistEntries.status, 'waiting')))
+      .for('update', { skipLocked: true });
 
-    const until = new Date(Date.now() + 15 * 60_000);
-    const updated = await tx.update(showSeats)
-      .set({ status: 'held', heldByUserId: next.userId, heldUntil: until, version: sql`${showSeats.version} + 1` })
-      .where(and(eq(showSeats.id, showSeatId), eq(showSeats.status, 'available')))
-      .returning({ id: showSeats.id });
-    if (!updated[0]) continue;
+    for (const waitlistUser of waitingUsers) {
+      await tx.update(waitlistEntries)
+        .set({ status: 'offered', offeredAt: new Date(), offerExpiresAt: null })
+        .where(eq(waitlistEntries.id, waitlistUser.id));
 
-    await tx.insert(holds).values({ userId: next.userId, showId, seatIds: [showSeatId], heldUntil: until });
-    await tx.update(waitlistEntries)
-      .set({ status: 'offered', offeredSeatIds: [showSeatId], offeredAt: new Date(), offerExpiresAt: until })
-      .where(eq(waitlistEntries.id, next.id));
-      
-    // Send email notification for waitlist offer
-    const user = (await tx.select({ email: users.email }).from(users).where(eq(users.id, next.userId)).limit(1))[0];
-    const eventDetails = (await tx.select({ title: events.title }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, showId)).limit(1))[0];
-    
-    if (user && eventDetails) {
-      await tx.insert(jobs).values({
-        type: 'email_notification',
-        payload: {
-          to: user.email,
-          subject: `Encore Waitlist — Seats Available!`,
-          eventTitle: eventDetails.title,
-          showId: showId,
-          template: 'waitlist_offer'
-        }
-      });
+      if (eventDetails) {
+        await tx.insert(jobs).values({
+          type: 'email_notification',
+          payload: {
+            to: waitlistUser.email,
+            subject: `Encore Waitlist — Seats Available!`,
+            eventTitle: eventDetails.title,
+            showId: showId,
+            template: 'waitlist_offer'
+          }
+        });
+      }
     }
   }
 }

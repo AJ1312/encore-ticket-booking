@@ -984,69 +984,107 @@ export class AppController {
     const input = confirmSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Invalid booking request');
 
-    const result = await db.transaction(async tx => {
-      const previous = (
-        await tx
-          .select({ id: bookings.id, bookingRef: bookings.bookingRef, showId: bookings.showId, qrTokenHash: bookings.qrTokenHash })
-          .from(bookings)
-          .where(and(eq(bookings.userId, u.sub), eq(bookings.idempotencyKey, input.data.idempotencyKey)))
-          .limit(1)
-      )[0];
-      if (previous) return { ...previous, isIdempotent: true };
+    let result;
+    try {
+      result = await db.transaction(async tx => {
+        const previous = (
+          await tx
+            .select({ id: bookings.id, bookingRef: bookings.bookingRef, showId: bookings.showId, qrTokenHash: bookings.qrTokenHash })
+            .from(bookings)
+            .where(and(eq(bookings.userId, u.sub), eq(bookings.idempotencyKey, input.data.idempotencyKey)))
+            .limit(1)
+        )[0];
+        if (previous) return { ...previous, isIdempotent: true };
 
-      const held = await tx
-        .select({ id: showSeats.id, showId: showSeats.showId, price: showSeats.heldPricePaise })
-        .from(showSeats)
-        .where(
-          and(
-            inArray(showSeats.id, input.data.seatIds),
-            eq(showSeats.heldByUserId, u.sub),
-            eq(showSeats.status, 'held'),
-            gt(showSeats.heldUntil, new Date())
+        const held = await tx
+          .select({ id: showSeats.id, showId: showSeats.showId, price: showSeats.heldPricePaise })
+          .from(showSeats)
+          .where(
+            and(
+              inArray(showSeats.id, input.data.seatIds),
+              eq(showSeats.heldByUserId, u.sub),
+              eq(showSeats.status, 'held'),
+              gt(showSeats.heldUntil, new Date())
+            )
           )
-        )
-        .for('update');
+          .for('update');
 
-      if (held.length !== input.data.seatIds.length) {
-        throw new ConflictException('Your seat hold expired or is no longer yours');
-      }
-      if (held.some(seat => seat.showId !== held[0].showId)) {
-        throw new ConflictException('All seats must belong to the same show');
-      }
+        if (held.length !== input.data.seatIds.length) {
+          throw new ConflictException('Your seat hold expired or is no longer yours');
+        }
+        if (held.some(seat => seat.showId !== held[0].showId)) {
+          throw new ConflictException('All seats must belong to the same show');
+        }
 
-      const total = held.reduce((sum, s) => sum + (s.price || 0), 0);
-      const ref = `ENC-${randomUUID().slice(0, 8).toUpperCase()}`;
-      const qrRaw = randomBytes(48).toString('base64url');
-      const qrHash = digest(qrRaw);
+        const total = held.reduce((sum, s) => sum + (s.price || 0), 0);
+        const ref = `ENC-${randomUUID().slice(0, 8).toUpperCase()}`;
+        const qrRaw = randomBytes(48).toString('base64url');
+        const qrHash = digest(qrRaw);
 
-      const created = (
+        const created = (
+          await tx
+            .insert(bookings)
+            .values({
+              userId: u.sub,
+              showId: held[0].showId,
+              totalPaise: total,
+              bookingRef: ref,
+              idempotencyKey: input.data.idempotencyKey,
+              qrTokenHash: qrHash,
+            })
+            .returning({ id: bookings.id, bookingRef: bookings.bookingRef, showId: bookings.showId })
+        )[0];
+
+        await tx.insert(bookingSeats).values(held.map(s => ({ bookingId: created.id, showSeatId: s.id, pricePaise: s.price || 0 })));
+
         await tx
-          .insert(bookings)
-          .values({
-            userId: u.sub,
-            showId: held[0].showId,
-            totalPaise: total,
-            bookingRef: ref,
-            idempotencyKey: input.data.idempotencyKey,
-            qrTokenHash: qrHash,
-          })
-          .returning({ id: bookings.id, bookingRef: bookings.bookingRef, showId: bookings.showId })
-      )[0];
+          .update(showSeats)
+          .set({ status: 'booked', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
+          .where(inArray(showSeats.id, input.data.seatIds));
 
-      await tx.insert(bookingSeats).values(held.map(s => ({ bookingId: created.id, showSeatId: s.id, pricePaise: s.price || 0 })));
+        if (input.data.holdId) {
+          await tx.update(holds).set({ status: 'converted', convertedAt: new Date() }).where(and(eq(holds.id, input.data.holdId), eq(holds.userId, u.sub)));
+        }
 
-      await tx
-        .update(showSeats)
-        .set({ status: 'booked', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
-        .where(inArray(showSeats.id, input.data.seatIds));
+        // Waitlist notification missed logic
+        const categoriesSet = new Set<string>();
+        const bookedSeatsWithCat = await tx.select({ category: seats.category }).from(showSeats).innerJoin(seats, eq(seats.id, showSeats.seatId)).where(inArray(showSeats.id, input.data.seatIds));
+        bookedSeatsWithCat.forEach(s => categoriesSet.add(s.category));
 
-      if (input.data.holdId) {
-        await tx.update(holds).set({ status: 'converted', convertedAt: new Date() }).where(and(eq(holds.id, input.data.holdId), eq(holds.userId, u.sub)));
-      }
+        if (categoriesSet.size > 0) {
+          const eventDetails = (await tx.select({ title: events.title }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, created.showId)).limit(1))[0];
+          for (const cat of categoriesSet) {
+            const missedUsers = await tx.select({ id: waitlistEntries.id, userId: waitlistEntries.userId, email: users.email })
+              .from(waitlistEntries)
+              .innerJoin(users, eq(users.id, waitlistEntries.userId))
+              .where(and(eq(waitlistEntries.showId, created.showId), eq(waitlistEntries.category, cat), eq(waitlistEntries.status, 'offered')))
+              .for('update', { skipLocked: true });
 
-      await tx.insert(jobs).values({ type: 'booking_confirmation', payload: { bookingId: created.id } });
-      return { ...created, qrToken: qrRaw, isIdempotent: false };
-    });
+            for (const mu of missedUsers) {
+              // Reset to waiting so they can be notified again if another seat opens
+              await tx.update(waitlistEntries).set({ status: 'waiting', offeredAt: null }).where(eq(waitlistEntries.id, mu.id));
+              
+              await tx.insert(jobs).values({
+                type: 'email_notification',
+                payload: {
+                  to: mu.email,
+                  subject: 'Encore Waitlist — Seats Booked Again',
+                  eventTitle: eventDetails?.title || 'the event',
+                  showId: created.showId,
+                  template: 'waitlist_missed'
+                }
+              });
+            }
+          }
+        }
+
+        await tx.insert(jobs).values({ type: 'booking_confirmation', payload: { bookingId: created.id } });
+        return { ...created, qrToken: qrRaw, isIdempotent: false };
+      });
+    } catch (e: any) {
+      if (e instanceof ConflictException) throw e;
+      throw new ConflictException('Database conflict booking seats. They may have been taken just now.');
+    }
 
     this.realtime.emitSeatUpdate(result.showId);
     return result;
@@ -1112,7 +1150,7 @@ export class AppController {
         .innerJoin(seats, eq(showSeats.seatId, seats.id))
         .where(eq(showSeats.showId, showId));
     }
-    return { seats: result, show: meta };
+    return { seats: result, meta: meta };
   }
 
   @Public()
@@ -1139,42 +1177,48 @@ export class AppController {
     const ttl = Number(process.env.SEAT_HOLD_TTL_SECONDS || 900);
     const heldUntil = new Date(Date.now() + ttl * 1000);
 
-    const result = await db.transaction(async tx => {
-      const held: string[] = [];
-      for (const seatId of input.data.seatIds) {
-        const seatRow = (
-          await tx
-            .select({ price: seats.pricePaise })
-            .from(showSeats)
-            .innerJoin(seats, eq(seats.id, showSeats.seatId))
-            .where(and(eq(showSeats.id, seatId), eq(showSeats.showId, showId)))
-            .limit(1)
+    let result;
+    try {
+      result = await db.transaction(async tx => {
+        const held: string[] = [];
+        for (const seatId of input.data.seatIds) {
+          const seatRow = (
+            await tx
+              .select({ price: seats.pricePaise })
+              .from(showSeats)
+              .innerJoin(seats, eq(seats.id, showSeats.seatId))
+              .where(and(eq(showSeats.id, seatId), eq(showSeats.showId, showId)))
+              .limit(1)
+          )[0];
+
+          if (!seatRow) throw new ConflictException('Seat does not exist');
+
+          const updated = await tx
+            .update(showSeats)
+            .set({ status: 'held', heldByUserId: u.sub, heldUntil, heldPricePaise: seatRow.price, version: sql`${showSeats.version}+1` })
+            .where(
+              and(
+                eq(showSeats.id, seatId),
+                eq(showSeats.showId, showId),
+                sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND (${showSeats.heldUntil}<=now() OR ${showSeats.heldByUserId}=${u.sub})))`
+              )
+            )
+            .returning({ id: showSeats.id });
+
+          if (!updated[0]) throw new ConflictException('One or more seats were just taken');
+          held.push(seatId);
+        }
+
+        const hold = (
+          await tx.insert(holds).values({ userId: u.sub, showId, seatIds: held, heldUntil }).returning({ id: holds.id })
         )[0];
 
-        if (!seatRow) throw new ConflictException('Seat does not exist');
-
-        const updated = await tx
-          .update(showSeats)
-          .set({ status: 'held', heldByUserId: u.sub, heldUntil, heldPricePaise: seatRow.price, version: sql`${showSeats.version}+1` })
-          .where(
-            and(
-              eq(showSeats.id, seatId),
-              eq(showSeats.showId, showId),
-              sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND (${showSeats.heldUntil}<=now() OR ${showSeats.heldByUserId}=${u.sub})))`
-            )
-          )
-          .returning({ id: showSeats.id });
-
-        if (!updated[0]) throw new ConflictException('One or more seats were just taken');
-        held.push(seatId);
-      }
-
-      const hold = (
-        await tx.insert(holds).values({ userId: u.sub, showId, seatIds: held, heldUntil }).returning({ id: holds.id })
-      )[0];
-
-      return { holdId: hold.id, seatIds: held, heldUntil };
-    });
+        return { holdId: hold.id, seatIds: held, heldUntil };
+      });
+    } catch (e: any) {
+      if (e instanceof ConflictException) throw e;
+      throw new ConflictException('Database conflict holding seats. They may have been taken just now.');
+    }
 
     this.realtime.emitSeatUpdate(showId);
     return result;

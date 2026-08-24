@@ -29,10 +29,10 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   const router = useRouter();
   const staticEvent = getEvent(eventId);
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
-  const showId = isUUID ? eventId : staticEvent.showId;
-  const isDining = staticEvent.kind === 'Dining';
+  const showId = isUUID ? eventId : staticEvent?.showId;
 
-  const [eventMeta, setEventMeta] = useState(staticEvent);
+  const [eventMeta, setEventMeta] = useState<any>(staticEvent || { title: 'Loading...', venue: 'Loading...', city: '', date: '', time: '', kind: 'Events' });
+  const isDining = eventMeta?.kind === 'Dining';
 
   const [seats, setSeats] = useState<Seat[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -60,7 +60,8 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   const [waitlistCategory, setWaitlistCategory] = useState(isDining ? 'Table for 4' : 'Premium');
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistSuccess, setWaitlistSuccess] = useState(false);
-  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistError, setWaitlistError] = useState('');
 
   // Live ticking 15-minute hold timer (900 seconds)
   const [holdTimer, setHoldTimer] = useState(899);
@@ -104,8 +105,11 @@ export function SeatPicker({ eventId }: { eventId: string }) {
         return sum + (table?.pricePaise || 180000);
       }, 0);
     }
-    return selected.reduce((sum, id) => sum + (seats.find(seat => seat.id === id)?.pricePaise || 0), 0);
-  }, [selected, seats, isDining, diningTables]);
+    return selected.reduce((sum, id) => {
+      const seat = seats.find(s => s.id === id);
+      return sum + (seat?.pricePaise || 149900);
+    }, 0);
+  }, [isDining, selected, seats, diningTables]);
 
   const totalDiners = useMemo(() => {
     if (!isDining) return selected.length;
@@ -117,9 +121,20 @@ export function SeatPicker({ eventId }: { eventId: string }) {
 
   function loadSeats() {
     if (!showId) return;
-    apiJson<{ seats: Seat[]; show?: any }>(`/shows/${showId}/seats`)
+    apiJson<{ seats: Seat[]; meta?: any }>(`/shows/${showId}/seats`)
       .then(result => {
         setSeats(result.seats || []);
+        if (result.meta) {
+          setEventMeta({
+            ...staticEvent,
+            title: result.meta.title,
+            venue: result.meta.venue,
+            city: result.meta.city,
+            date: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : staticEvent?.date,
+            time: result.meta.startsAt ? new Date(result.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : staticEvent?.time,
+            kind: result.meta.type || staticEvent?.kind || 'Events',
+          } as any);
+        }
         setLoading(false);
       })
       .catch(() => {
@@ -215,7 +230,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
 
   async function submitWaitlist(e: React.FormEvent) {
     e.preventDefault();
-    setWaitlistSubmitting(true);
+    setWaitlistLoading(true);
     try {
       await apiJson('/waitlist', {
         method: 'POST',
@@ -228,7 +243,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     } catch {
       setWaitlistSuccess(true);
     } finally {
-      setWaitlistSubmitting(false);
+      setWaitlistLoading(false);
     }
   }
 
@@ -1044,11 +1059,11 @@ export function SeatPicker({ eventId }: { eventId: string }) {
 
                 <button
                   type="submit"
-                  disabled={waitlistSubmitting}
+                  disabled={waitlistLoading}
                   className="coral-button"
                   style={{ width: '100%' }}
                 >
-                  {waitlistSubmitting ? 'Registering…' : 'Notify Me In Next Batch of 5 →'}
+                  {waitlistLoading ? 'Registering…' : 'Notify Me In Next Batch of 5 →'}
                 </button>
               </form>
             )}

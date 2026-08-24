@@ -19,10 +19,10 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
   const effectiveEventId = eventId || showIdQuery || 'the-night-we-remember';
   const staticEvent = getEvent(effectiveEventId);
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveEventId);
-  const showId = isUUID ? effectiveEventId : (showIdQuery || staticEvent.showId);
+  const showId = isUUID ? effectiveEventId : (showIdQuery || staticEvent?.showId);
   const seatIds = useMemo(() => (params.get('seats') || '').split(',').filter(Boolean), [params]);
 
-  const [eventMeta, setEventMeta] = useState(staticEvent);
+  const [eventMeta, setEventMeta] = useState<any>(staticEvent || { title: 'Loading...', venue: 'Loading...', city: '', date: '', time: '' });
   const [seats, setSeats] = useState<Seat[]>([]);
   const [holdId, setHoldId] = useState<string>();
   const [state, setState] = useState<'loading' | 'ready' | 'paying' | 'error' | 'confirmed'>('loading');
@@ -101,10 +101,20 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
     void (async () => {
       try {
         if (showId) {
-          const inventory = await apiJson<{ seats: Seat[]; show?: any }>(`/shows/${showId}/seats`).catch(() => null);
+          const inventory = await apiJson<{ seats: Seat[]; meta?: any }>(`/shows/${showId}/seats`).catch(() => null);
           if (inventory && inventory.seats) {
             const chosen = inventory.seats.filter(seat => seatIds.includes(seat.id));
             if (chosen.length > 0) setSeats(chosen);
+            if (inventory.meta) {
+              setEventMeta({
+                ...staticEvent,
+                title: inventory.meta.title,
+                venue: inventory.meta.venue,
+                city: inventory.meta.city,
+                date: inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : staticEvent?.date,
+                time: inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : staticEvent?.time,
+              } as any);
+            }
           } else if (isUUID) {
             // User requested: if issue fetching with backend, resolve with loading screen forever
             // We just return and do not transition to 'ready'

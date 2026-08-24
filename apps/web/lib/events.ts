@@ -209,9 +209,6 @@ export const encoreEvents: EncoreEvent[] = [
   },
 ];
 
-export function getEvent(idOrSlug: string) {
-  return (
-    encoreEvents.find(event => event.slug === idOrSlug || event.showId === idOrSlug) ||
-    encoreEvents[0]
-  );
+export function getEvent(idOrSlug: string): EncoreEvent | undefined {
+  return encoreEvents.find(event => event.slug === idOrSlug || event.showId === idOrSlug);
 }
