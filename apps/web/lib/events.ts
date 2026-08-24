@@ -123,6 +123,19 @@ export const encoreEvents: EncoreEvent[] = [
     image: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1000&q=85',
     showId: '55555555-5555-4555-8555-000000000012',
   },
+  {
+    slug: 'olive-qutub-brunch-delhi',
+    title: 'Olive Qutub: Mediterranean Brunch & Wine',
+    kind: 'Dining',
+    date: '24 Aug',
+    time: '1:00 PM',
+    venue: 'Olive Bar & Kitchen, Mehrauli',
+    city: 'Delhi NCR',
+    price: '₹2,200',
+    description: 'White-walled courtyard brunch with wood-fired sourdough, Mediterranean mezze, and sommelier-curated wines.',
+    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1000&q=85',
+    showId: '55555555-5555-4555-8555-000000000013',
+  },
 
   // ── Bengaluru ─────────────────────────────────────────────────────────────
   {

@@ -8,10 +8,10 @@ import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 
 const cards = [
-  { slug: 'actually-im-fine', title: 'Actually, I’m Fine', type: 'Comedy', meta: 'The Habitat · 29 Aug', price: '₹899', image: 'https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&w=900&q=85' },
-  { slug: 'signals-after-dark', title: 'Signals / After Dark', type: 'Live music', meta: 'AntiSocial · 30 Aug', price: '₹1,200', image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=85' },
-  { slug: 'midnight-in-marigold', title: 'Midnight in Marigold', type: 'Cinema', meta: 'PVR Lower Parel · Today', price: '₹280', image: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=900&q=85' },
-  { slug: 'the-long-way-home', title: 'The Long Way Home', type: 'Cinema', meta: 'Maison PVR · 31 Aug', price: '₹450', image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=900&q=85' },
+  { slug: 'sunday-social', title: 'Sunday Social: Vinyl & Small Plates', type: 'Dining', meta: 'The Bombay Canteen · Table Reservation', price: '₹1,800', image: 'https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=900&q=85' },
+  { slug: 'actually-im-fine', title: 'Actually, I’m Fine', type: 'Comedy', meta: 'The Habitat · 19 Sep', price: '₹899', image: 'https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&w=900&q=85' },
+  { slug: 'signals-after-dark', title: 'Signals / After Dark', type: 'Live music', meta: 'AntiSocial · 25 Sep', price: '₹1,200', image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=85' },
+  { slug: 'midnight-in-marigold', title: 'Midnight in Marigold', type: 'Cinema', meta: 'PVR Lower Parel · 18 Sep', price: '₹280', image: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=900&q=85' },
 ];
 
 function RailCard({ card }: { card: typeof cards[number] }) {

@@ -91,7 +91,8 @@ function EventsContent() {
         const apiList = result.events.map(item => {
           const known = encoreEvents.find(event => event.title === item.title || event.showId === item.showId);
           const date = new Date(item.startsAt);
-          const kind = item.type === 'movie' ? 'Movies' : item.type === 'comedy' ? 'Comedy' : 'Events';
+          const isDining = item.type === 'dining' || known?.kind === 'Dining' || item.title.toLowerCase().includes('brunch') || item.title.toLowerCase().includes('dining') || item.title.toLowerCase().includes('plates') || item.title.toLowerCase().includes('dine') || item.title.toLowerCase().includes('canteen') || item.title.toLowerCase().includes('bistro');
+          const kind = isDining ? 'Dining' : item.type === 'movie' ? 'Movies' : item.type === 'comedy' ? 'Comedy' : 'Events';
           return {
             ...(known || {
               slug: item.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),

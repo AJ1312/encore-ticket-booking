@@ -75,6 +75,15 @@ const cityShows = {
     posterUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1000&q=85',
     startsAt: new Date('2026-09-26T15:30:00.000Z'),
   },
+  '55555555-5555-4555-8555-000000000013': {
+    venueId: '33333333-3333-4333-8333-000000000013',
+    venueName: 'Olive Bar & Kitchen',
+    city: 'Delhi NCR',
+    eventId: '44444444-4444-4444-8444-000000000013',
+    eventTitle: 'Olive Qutub: Mediterranean Brunch & Wine',
+    posterUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1000&q=85',
+    startsAt: new Date('2026-08-24T07:30:00.000Z'),
+  },
   '55555555-5555-4555-8555-000000000020': {
     venueId: '33333333-3333-4333-8333-000000000020',
     venueName: 'Jayamahal Palace Lawns',
