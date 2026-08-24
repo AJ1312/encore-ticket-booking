@@ -671,6 +671,43 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
                   Booking locks automatically in {paymentSeconds} seconds.
                 </small>
 
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setState('error');
+                    if (showId && (holdId || seatIds.length)) {
+                      await apiJson(`/shows/${showId}/release-hold`, {
+                        method: 'POST',
+                        body: JSON.stringify({ showId, seatIds, holdId }),
+                      }).catch(() => null);
+                    }
+                    router.push('/');
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    marginTop: 16,
+                    padding: '10px',
+                    background: 'transparent',
+                    border: '1px solid #4a3c36',
+                    color: 'var(--peach)',
+                    borderRadius: 6,
+                    font: '11px var(--mono)',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#38201a';
+                    e.currentTarget.style.borderColor = 'var(--coral)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.borderColor = '#4a3c36';
+                  }}
+                >
+                  Cancel Payment
+                </button>
               </div>
             ) : (
               <button
