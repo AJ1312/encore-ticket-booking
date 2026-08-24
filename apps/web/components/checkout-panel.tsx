@@ -113,6 +113,10 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
           if (inventory && inventory.seats) {
             const chosen = inventory.seats.filter(seat => seatIds.includes(seat.id));
             if (chosen.length > 0) setSeats(chosen);
+          } else if (isUUID) {
+            // User requested: if issue fetching with backend, resolve with loading screen forever
+            // We just return and do not transition to 'ready'
+            return;
           }
 
           // Read holdId from URL search param if provided
@@ -147,6 +151,10 @@ export function CheckoutPanel({ eventId = 'the-night-we-remember' }: { eventId?:
         }
       } catch {
         if (isMounted && state !== 'error') {
+          if (isUUID) {
+            // Keep it in loading screen
+            return;
+          }
           setState('ready');
         }
       }

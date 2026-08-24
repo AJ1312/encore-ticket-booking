@@ -118,6 +118,10 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
     if (!showId) return;
     apiJson<{ seats: Seat[]; show?: any }>(`/shows/${showId}/seats`)
       .then(result => {
+        if (isUUID && !result.show) {
+          // Keep loading screen indefinitely if backend returns empty show for real event
+          return;
+        }
         setSeats(result.seats || []);
         if (result.show) {
           setEventMeta(prev => ({
@@ -129,10 +133,12 @@ export function SeatPicker({ eventId = 'the-night-we-remember' }: { eventId?: st
             time: new Date(result.show.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
           }));
         }
-      })
-      .catch(() => null)
-      .finally(() => {
         setLoading(false);
+      })
+      .catch(() => {
+        if (!isUUID) {
+          setLoading(false);
+        }
       });
   }
 
