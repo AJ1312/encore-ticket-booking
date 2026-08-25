@@ -2,12 +2,12 @@ import type { Session } from '@encore/shared';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-export async function signIn(email: string, password: string): Promise<Session> {
+export async function signIn(email: string, password: string, turnstileToken?: string): Promise<Session> {
   const r = await fetch(`${API}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, 'cf-turnstile-response': turnstileToken }),
   });
   if (!r.ok) throw new Error((await r.text()) || 'Unable to sign in');
   const data = (await r.json()) as { session: Session; accessToken?: string };
@@ -22,12 +22,12 @@ export async function signIn(email: string, password: string): Promise<Session> 
 
 
 
-export async function signUp(name: string, email: string, password: string, role?: 'customer' | 'organiser'): Promise<Session> {
+export async function signUp(name: string, email: string, password: string, role?: 'customer' | 'organiser', turnstileToken?: string): Promise<Session> {
   const r = await fetch(`${API}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ name, email, password, role }),
+    body: JSON.stringify({ name, email, password, role, 'cf-turnstile-response': turnstileToken }),
   });
   if (!r.ok) throw new Error((await r.text()) || 'Unable to register');
   const data = (await r.json()) as { session: Session; accessToken?: string };

@@ -12,7 +12,12 @@ export class RealtimeGateway {
     return { ok: true };
   }
 
-  emitSeatUpdate(showId: string) {
-    this.server.to(`show:${showId}`).emit('seat-updated', { showId });
+  emitSeatUpdate(showId: string, seatIds?: string[], status?: string) {
+    if (seatIds && seatIds.length > 0 && status) {
+      this.server.to(`show:${showId}`).emit('seat-updated', { showId, seatIds, status });
+    } else {
+      // Fallback for full refresh if specific seats aren't provided
+      this.server.to(`show:${showId}`).emit('seat-updated', { showId });
+    }
   }
 }

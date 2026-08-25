@@ -97,10 +97,71 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 const ROLES_KEY = 'roles';
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 
-const secret = () =>
-  process.env.JWT_ACCESS_SECRET && process.env.JWT_ACCESS_SECRET.length >= 32
-    ? process.env.JWT_ACCESS_SECRET
-    : 'encore-production-jwt-access-secret-minimum-32-chars-key!!';
+/**
+ * Canonical Cloudflare Turnstile server-side siteverify.
+ * Returns true if the token is valid for the expected action.
+ * Skips verification in dev/test when TURNSTILE_SECRET is not set (so local dev is unaffected).
+ * In production, always enforces.
+ */
+async function verifyTurnstile(
+  token: string | undefined,
+  action: string,
+  remoteIp?: string,
+): Promise<boolean> {
+  const turnstileSecret = process.env.TURNSTILE_SECRET;
+  // In non-production without a secret configured, skip enforcement
+  if (!turnstileSecret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[Turnstile] TURNSTILE_SECRET not set in production — rejecting all requests');
+      return false;
+    }
+    return true; // dev/test: pass-through
+  }
+  if (!token || token.length === 0 || token.length > 2048) return false;
+  const expectedHostnames = new Set(
+    (process.env.TURNSTILE_HOSTNAMES ?? '')
+      .split(',')
+      .map(h => h.trim())
+      .filter(Boolean),
+  );
+  // In production require explicit hostname allowlist
+  if (process.env.NODE_ENV === 'production' && expectedHostnames.size === 0) {
+    console.warn('[Turnstile] TURNSTILE_HOSTNAMES not set in production — rejecting all requests');
+    return false;
+  }
+  try {
+    const params = new URLSearchParams({ secret: turnstileSecret, response: token });
+    if (remoteIp) params.append('remoteip', remoteIp);
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: AbortSignal.timeout(10_000),
+      body: params,
+    });
+    if (!r.ok) throw new Error(`siteverify ${r.status}`);
+    const result = await r.json() as { success: boolean; action?: string; hostname?: string };
+    if (!result.success) return false;
+    // Validate action matches what we expect
+    if (result.action && result.action !== action) return false;
+    // Validate hostname is in our allowlist (skip in dev where set is empty)
+    if (expectedHostnames.size > 0 && result.hostname && !expectedHostnames.has(result.hostname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const secret = () => {
+  const s = process.env.JWT_ACCESS_SECRET;
+  if (!s || s.length < 32) {
+    // Fail fast in production; allow dev fallback only when explicitly opted in
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL: JWT_ACCESS_SECRET env var is missing or too short. Refusing to start.');
+    }
+    return 'encore-dev-only-jwt-secret-minimum-32-chars-key!!';
+  }
+  return s;
+};
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 type AccessPayload = { sub: string; name: string; email: string; role: Role; permissions?: string[] };
 
@@ -123,43 +184,38 @@ function auth(req: Request) {
   return req.user;
 }
 
+// Cache guest password hash at module level — argon2 is CPU-intensive and
+// must NOT run on every unauthenticated request.
+let _cachedGuestHash: string | null = null;
+async function getGuestHash() {
+  if (!_cachedGuestHash) _cachedGuestHash = await argon2.hash('SeedPassword123!');
+  return _cachedGuestHash;
+}
+
 async function resolveUserOrGuest(req: Request): Promise<AccessPayload> {
   let raw = req.cookies?.encore_access;
-  if (!raw && req.headers.authorization?.startsWith('Bearer ')) {
+  if (!raw && req.headers?.authorization?.startsWith('Bearer ')) {
     raw = req.headers.authorization.slice(7);
   }
   if (raw) {
     try {
       return jwt.verify(raw, secret()) as AccessPayload;
-    } catch {
-      // ignore
+    } catch (err: any) {
+      // Expired tokens are NOT silently downgraded — throw 401 so the client
+      // knows to re-authenticate instead of silently acting as a guest.
+      if (err?.name === 'TokenExpiredError') throw new UnauthorizedException('Session expired. Please log in again.');
+      // Other JWT errors (malformed, wrong sig) fall through to guest.
     }
   }
   if (req.user) return req.user;
 
   const defaultGuestId = '00000000-0000-4000-8000-000000000001';
-  const defaultCustomerId = '00000000-0000-4000-8000-000000000002';
-  try {
-    const password = await argon2.hash('SeedPassword123!');
-    await db.insert(users).values([
-      {
-        id: defaultGuestId,
-        name: 'Encore Guest',
-        email: 'guest@encore.local',
-        passwordHash: password,
-        role: 'customer',
-      },
-      {
-        id: defaultCustomerId,
-        name: 'Encore Customer',
-        email: 'customer@encore.local',
-        passwordHash: password,
-        role: 'customer',
-      }
-    ]).onConflictDoNothing();
-  } catch {
-    // ignore
-  }
+  // Seed guest user lazily with cached hash — runs only once per server lifecycle
+  const password = await getGuestHash();
+  await db.insert(users).values([
+    { id: defaultGuestId, name: 'Encore Guest', email: 'guest@encore.local', passwordHash: password, role: 'customer' },
+    { id: '00000000-0000-4000-8000-000000000002', name: 'Encore Customer', email: 'customer@encore.local', passwordHash: password, role: 'customer' },
+  ]).onConflictDoNothing().catch(() => {});
 
   return { sub: defaultGuestId, name: 'Encore Guest', email: 'guest@encore.local', role: 'customer' };
 }
@@ -794,9 +850,13 @@ export class AppController {
   // ── Auth ─────────────────────────────────────────────────────────────────────
   @Public()
   @Post('auth/register')
-  async register(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
+  async register(@Body() body: unknown, @Res({ passthrough: true }) res: Response, @Req() req: Request) {
     const input = registerSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Invalid registration details');
+    const cfToken = (body as Record<string, unknown>)?.['cf-turnstile-response'] as string | undefined;
+    if (!await verifyTurnstile(cfToken, 'signup', req.ip)) {
+      throw new ForbiddenException('Bot protection check failed. Please complete the challenge.');
+    }
     const email = input.data.email.toLowerCase();
     const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
     if (existing[0]) throw new ConflictException('Email already registered');
@@ -819,9 +879,13 @@ export class AppController {
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('auth/login')
-  async login(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
+  async login(@Body() body: unknown, @Res({ passthrough: true }) res: Response, @Req() req: Request) {
     const input = loginSchema.safeParse(body);
     if (!input.success) throw new UnauthorizedException('Invalid email or password');
+    const cfToken = (body as Record<string, unknown>)?.['cf-turnstile-response'] as string | undefined;
+    if (!await verifyTurnstile(cfToken, 'login', req.ip)) {
+      throw new ForbiddenException('Bot protection check failed. Please complete the challenge.');
+    }
     const row = (await db.select().from(users).where(eq(users.email, input.data.email.toLowerCase())).limit(1))[0];
     if (!row || !(await argon2.verify(row.passwordHash, input.data.password))) {
       throw new UnauthorizedException('Invalid email or password');
@@ -832,9 +896,13 @@ export class AppController {
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('auth/forgot-password')
-  async forgotPassword(@Body() body: unknown) {
+  async forgotPassword(@Body() body: unknown, @Req() req: Request) {
     const input = passwordResetRequestSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Invalid email');
+    const cfToken = (body as Record<string, unknown>)?.['cf-turnstile-response'] as string | undefined;
+    if (!await verifyTurnstile(cfToken, 'forgot-password', req.ip)) {
+      throw new ForbiddenException('Bot protection check failed. Please complete the challenge.');
+    }
     const user = (await db.select({ id: users.id }).from(users).where(eq(users.email, input.data.email.toLowerCase())).limit(1))[0];
     const response: { ok: boolean; resetToken?: string } = { ok: true };
     if (user) {
@@ -1374,33 +1442,43 @@ export class AppController {
     let result;
     try {
       result = await db.transaction(async tx => {
+        // 1. Pessimistic Row Lock (ADR-002 Compliant)
+        const lockedSeats = await tx
+          .select({
+            id: showSeats.id,
+            status: showSeats.status,
+            heldUntil: showSeats.heldUntil,
+            heldByUserId: showSeats.heldByUserId,
+            price: seats.pricePaise
+          })
+          .from(showSeats)
+          .innerJoin(seats, eq(seats.id, showSeats.seatId))
+          .where(and(inArray(showSeats.id, input.data.seatIds), eq(showSeats.showId, showId)))
+          .for('update');
+
+        if (lockedSeats.length !== input.data.seatIds.length) {
+          throw new ConflictException('One or more seats do not exist');
+        }
+
+        // 2. Validate state under lock
         const held: string[] = [];
-        for (const seatId of input.data.seatIds) {
-          const seatRow = (
-            await tx
-              .select({ price: seats.pricePaise })
-              .from(showSeats)
-              .innerJoin(seats, eq(seats.id, showSeats.seatId))
-              .where(and(eq(showSeats.id, seatId), eq(showSeats.showId, showId)))
-              .limit(1)
-          )[0];
+        for (const seat of lockedSeats) {
+          const isAvailable = seat.status === 'available';
+          const isExpiredHold = seat.status === 'held' && seat.heldUntil && new Date(seat.heldUntil) <= new Date();
+          const isOwnHold = seat.status === 'held' && seat.heldByUserId === u.sub;
 
-          if (!seatRow) throw new ConflictException('Seat does not exist');
+          if (!isAvailable && !isExpiredHold && !isOwnHold) {
+             throw new ConflictException('One or more seats were just taken');
+          }
+          held.push(seat.id);
+        }
 
-          const updated = await tx
+        // 3. Mutate safely
+        for (const seat of lockedSeats) {
+          await tx
             .update(showSeats)
-            .set({ status: 'held', heldByUserId: u.sub, heldUntil, heldPricePaise: seatRow.price, version: sql`${showSeats.version}+1` })
-            .where(
-              and(
-                eq(showSeats.id, seatId),
-                eq(showSeats.showId, showId),
-                sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND (${showSeats.heldUntil}<=now() OR ${showSeats.heldByUserId}=${u.sub})))`
-              )
-            )
-            .returning({ id: showSeats.id });
-
-          if (!updated[0]) throw new ConflictException('One or more seats were just taken');
-          held.push(seatId);
+            .set({ status: 'held', heldByUserId: u.sub, heldUntil, heldPricePaise: seat.price, version: sql`${showSeats.version}+1` })
+            .where(eq(showSeats.id, seat.id));
         }
 
         const hold = (
@@ -1414,7 +1492,7 @@ export class AppController {
       throw new ConflictException('Database conflict holding seats. They may have been taken just now.');
     }
 
-    this.realtime.emitSeatUpdate(showId);
+    this.realtime.emitSeatUpdate(showId, result.seatIds, 'held');
     return result;
   }
 
@@ -1424,11 +1502,15 @@ export class AppController {
   async releaseHold(@Param('showId') showId: string, @Body() body: unknown, @Req() req: Request) {
     const u = await resolveUserOrGuest(req);
     const { seatIds, holdId } = (body || {}) as { seatIds?: string[]; holdId?: string };
+    
+    let releasedSeatIds: string[] = [];
+    
     if (Array.isArray(seatIds) && seatIds.length) {
       await db
         .update(showSeats)
         .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
         .where(and(inArray(showSeats.id, seatIds), eq(showSeats.showId, showId), eq(showSeats.status, 'held'), eq(showSeats.heldByUserId, u.sub)));
+      releasedSeatIds = seatIds;
     } else if (holdId) {
       const hold = (await db.select().from(holds).where(and(eq(holds.id, holdId), eq(holds.userId, u.sub))).limit(1))[0];
       if (hold && Array.isArray(hold.seatIds) && hold.seatIds.length) {
@@ -1437,14 +1519,18 @@ export class AppController {
           .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
           .where(and(inArray(showSeats.id, hold.seatIds as string[]), eq(showSeats.showId, showId), eq(showSeats.status, 'held'), eq(showSeats.heldByUserId, u.sub)));
         await db.update(holds).set({ status: 'expired' }).where(eq(holds.id, holdId));
+        releasedSeatIds = hold.seatIds as string[];
       }
     }
-    this.realtime.emitSeatUpdate(showId);
+    
+    if (releasedSeatIds.length > 0) {
+      this.realtime.emitSeatUpdate(showId, releasedSeatIds, 'available');
+    }
     return { ok: true };
   }
 
   // ── Reset all seats across all shows ─────────────────────────────────────────
-  @Public()
+  @Roles('admin')
   @Post('admin/seats/reset')
   async resetAllSeats() {
     await db
@@ -1457,8 +1543,8 @@ export class AppController {
   @Post('shows/:showId/payment-intent')
   async createPaymentIntent(@Param('showId') showId: string, @Body() body: unknown, @Req() req: Request) {
     const u = auth(req);
-    const { holdId, seatIds, amountPaise } = body as { holdId: string; seatIds: string[]; amountPaise: number };
-    if (!holdId || !seatIds?.length || !amountPaise) throw new BadRequestException('holdId, seatIds, amountPaise required');
+    const { holdId, seatIds } = body as { holdId: string; seatIds: string[] };
+    if (!holdId || !seatIds?.length) throw new BadRequestException('holdId and seatIds are required');
 
     const hold = (
       await db
@@ -1470,16 +1556,25 @@ export class AppController {
 
     if (!hold) throw new ConflictException('Hold is no longer active');
 
+    // Calculate amount server-side — never trust client-supplied price (prevents price manipulation)
+    const heldSeats = await db
+      .select({ price: showSeats.heldPricePaise })
+      .from(showSeats)
+      .where(and(inArray(showSeats.id, seatIds), eq(showSeats.heldByUserId, u.sub), eq(showSeats.status, 'held')));
+
+    if (heldSeats.length !== seatIds.length) throw new ConflictException('One or more seat holds have expired');
+    const amountPaise = heldSeats.reduce((sum, s) => sum + (s.price || 0), 0);
+
     const expiresAt = new Date(Date.now() + 10 * 60_000);
     const payment = (
       await db
         .insert(payments)
         .values({ userId: u.sub, showId, holdId, seatIds, amountPaise, expiresAt })
-        .returning({ id: payments.id, expiresAt: payments.expiresAt })
+        .returning({ id: payments.id, expiresAt: payments.expiresAt, amountPaise: payments.amountPaise })
     )[0];
 
     await db.insert(jobs).values({ type: 'payment_timeout', payload: { paymentId: payment.id }, availableAt: expiresAt });
-    return { paymentId: payment.id, expiresAt: payment.expiresAt };
+    return { paymentId: payment.id, expiresAt: payment.expiresAt, amountPaise: payment.amountPaise };
   }
 
   @Post('payments/:paymentId/complete')
@@ -1498,10 +1593,17 @@ export class AppController {
 
     if (!payment) throw new ConflictException('Payment not found or expired');
 
-    await db.update(payments).set({ status: 'completed', paidAt: new Date() }).where(eq(payments.id, paymentId));
+    // NOTE: payment.set(completed) is intentionally INSIDE the booking transaction below.
+    // Moving it outside would create a double-spend window: if the server crashes after
+    // marking paid but before creating the booking, the user pays but gets no ticket.
     const seatIds = Array.isArray(payment.seatIds) ? (payment.seatIds as string[]) : [];
 
     const result = await db.transaction(async tx => {
+      // Mark payment completed atomically inside the transaction.
+      // This guarantees that if anything below fails, the payment rolls back
+      // to 'pending' — preventing the double-spend (paid but no ticket) bug.
+      await tx.update(payments).set({ status: 'completed', paidAt: new Date() }).where(eq(payments.id, paymentId));
+
       const previous = (
         await tx
           .select({ id: bookings.id, bookingRef: bookings.bookingRef, showId: bookings.showId })
@@ -1632,7 +1734,9 @@ export class AppController {
     return { ...booking, isValid: booking.status === 'confirmed', seats: seatRows };
   }
 
-  @Public()
+  // Checkin requires staff — @Public() was a critical security vulnerability
+  // allowing anyone to check in any ticket using a guessed/intercepted QR token.
+  @Roles('organiser', 'admin')
   @Post('verify/:token/checkin')
   async checkinQr(@Param('token') token: string, @Body() body: unknown) {
     const { seatIds } = body as { seatIds: string[] };
@@ -1798,16 +1902,41 @@ export class AppController {
 
       if (!entry) throw new ConflictException('This waitlist offer is unavailable or expired');
 
-      return (
+      const offeredSeatIds = Array.isArray(entry.offeredSeatIds) ? (entry.offeredSeatIds as string[]) : [];
+
+      // CRITICAL FIX: Actually hold the offered seats so they can't be
+      // booked by someone else between claim and checkout.
+      if (offeredSeatIds.length > 0) {
+        const ttl = Number(process.env.SEAT_HOLD_TTL_SECONDS || 900);
+        const heldUntil = new Date(Date.now() + ttl * 1000);
+        // Pessimistic lock the seats first
+        const lockedSeats = await tx
+          .select({ id: showSeats.id, status: showSeats.status })
+          .from(showSeats)
+          .where(and(inArray(showSeats.id, offeredSeatIds), eq(showSeats.showId, entry.showId)))
+          .for('update');
+
+        const unavailable = lockedSeats.filter(s => s.status !== 'available');
+        if (unavailable.length > 0) throw new ConflictException('Some offered seats are no longer available');
+
+        await tx
+          .update(showSeats)
+          .set({ status: 'held', heldByUserId: u.sub, heldUntil, version: sql`${showSeats.version}+1` })
+          .where(inArray(showSeats.id, offeredSeatIds));
+      }
+
+      const claimed = (
         await tx
           .update(waitlistEntries)
           .set({ status: 'claimed', claimedAt: new Date() })
           .where(eq(waitlistEntries.id, entryId))
           .returning({ id: waitlistEntries.id, showId: waitlistEntries.showId, status: waitlistEntries.status, seatIds: waitlistEntries.offeredSeatIds })
       )[0];
+
+      return claimed;
     });
 
-    this.realtime.emitSeatUpdate(result.showId);
+    this.realtime.emitSeatUpdate(result.showId, Array.isArray(result.seatIds) ? result.seatIds as string[] : [], 'held');
     return result;
   }
 

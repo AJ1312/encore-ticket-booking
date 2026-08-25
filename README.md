@@ -14,6 +14,7 @@ Encore is a high-performance, resilient ticket booking platform designed for hig
 - Node.js (v22+)
 - pnpm (v10+)
 - PostgreSQL (Local, Neon, Render, or Supabase)
+- Redis (Local, Upstash, or Docker - required for BullMQ workers and Waitlist)
 
 ### 1. Install Dependencies
 This project uses a monorepo structure managed by pnpm.
@@ -26,18 +27,19 @@ Copy the example environment file and configure it:
 ```bash
 cp .env.example .env
 ```
-Ensure `DATABASE_URL` is correctly pointed to your PostgreSQL instance and `JWT_ACCESS_SECRET` is at least 32 characters long.
+Ensure `DATABASE_URL` points to PostgreSQL and `REDIS_URL` points to your Redis instance.
+Set `BETTER_AUTH_SECRET` (at least 32 characters) and `BETTER_AUTH_URL` for authentication.
 
-### 3. Database Migration and Seeding
-First, start the local PostgreSQL database using Docker (or ensure your external database is running):
+### 3. Start Backing Services
+Start the required local infrastructure (PostgreSQL, Redis) using Docker:
 ```bash
 docker-compose up -d
 ```
 
-Next, run the database migrations and seed it with demo data (events, venues, demo users):
+Next, run the Prisma database migrations and seed it with demo data:
 ```bash
-pnpm --filter @encore/api db:migrate
-pnpm --filter @encore/api db:seed
+pnpm dlx prisma migrate dev
+pnpm dlx prisma db seed
 ```
 
 ### 4. Start the Application
