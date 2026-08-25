@@ -1374,33 +1374,43 @@ export class AppController {
     let result;
     try {
       result = await db.transaction(async tx => {
+        // 1. Pessimistic Row Lock (ADR-002 Compliant)
+        const lockedSeats = await tx
+          .select({
+            id: showSeats.id,
+            status: showSeats.status,
+            heldUntil: showSeats.heldUntil,
+            heldByUserId: showSeats.heldByUserId,
+            price: seats.pricePaise
+          })
+          .from(showSeats)
+          .innerJoin(seats, eq(seats.id, showSeats.seatId))
+          .where(and(inArray(showSeats.id, input.data.seatIds), eq(showSeats.showId, showId)))
+          .for('update');
+
+        if (lockedSeats.length !== input.data.seatIds.length) {
+          throw new ConflictException('One or more seats do not exist');
+        }
+
+        // 2. Validate state under lock
         const held: string[] = [];
-        for (const seatId of input.data.seatIds) {
-          const seatRow = (
-            await tx
-              .select({ price: seats.pricePaise })
-              .from(showSeats)
-              .innerJoin(seats, eq(seats.id, showSeats.seatId))
-              .where(and(eq(showSeats.id, seatId), eq(showSeats.showId, showId)))
-              .limit(1)
-          )[0];
+        for (const seat of lockedSeats) {
+          const isAvailable = seat.status === 'available';
+          const isExpiredHold = seat.status === 'held' && seat.heldUntil && new Date(seat.heldUntil) <= new Date();
+          const isOwnHold = seat.status === 'held' && seat.heldByUserId === u.sub;
 
-          if (!seatRow) throw new ConflictException('Seat does not exist');
+          if (!isAvailable && !isExpiredHold && !isOwnHold) {
+             throw new ConflictException('One or more seats were just taken');
+          }
+          held.push(seat.id);
+        }
 
-          const updated = await tx
+        // 3. Mutate safely
+        for (const seat of lockedSeats) {
+          await tx
             .update(showSeats)
-            .set({ status: 'held', heldByUserId: u.sub, heldUntil, heldPricePaise: seatRow.price, version: sql`${showSeats.version}+1` })
-            .where(
-              and(
-                eq(showSeats.id, seatId),
-                eq(showSeats.showId, showId),
-                sql`(${showSeats.status}='available' OR (${showSeats.status}='held' AND (${showSeats.heldUntil}<=now() OR ${showSeats.heldByUserId}=${u.sub})))`
-              )
-            )
-            .returning({ id: showSeats.id });
-
-          if (!updated[0]) throw new ConflictException('One or more seats were just taken');
-          held.push(seatId);
+            .set({ status: 'held', heldByUserId: u.sub, heldUntil, heldPricePaise: seat.price, version: sql`${showSeats.version}+1` })
+            .where(eq(showSeats.id, seat.id));
         }
 
         const hold = (
@@ -1414,7 +1424,7 @@ export class AppController {
       throw new ConflictException('Database conflict holding seats. They may have been taken just now.');
     }
 
-    this.realtime.emitSeatUpdate(showId);
+    this.realtime.emitSeatUpdate(showId, result.seatIds, 'held');
     return result;
   }
 
@@ -1424,11 +1434,15 @@ export class AppController {
   async releaseHold(@Param('showId') showId: string, @Body() body: unknown, @Req() req: Request) {
     const u = await resolveUserOrGuest(req);
     const { seatIds, holdId } = (body || {}) as { seatIds?: string[]; holdId?: string };
+    
+    let releasedSeatIds: string[] = [];
+    
     if (Array.isArray(seatIds) && seatIds.length) {
       await db
         .update(showSeats)
         .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
         .where(and(inArray(showSeats.id, seatIds), eq(showSeats.showId, showId), eq(showSeats.status, 'held'), eq(showSeats.heldByUserId, u.sub)));
+      releasedSeatIds = seatIds;
     } else if (holdId) {
       const hold = (await db.select().from(holds).where(and(eq(holds.id, holdId), eq(holds.userId, u.sub))).limit(1))[0];
       if (hold && Array.isArray(hold.seatIds) && hold.seatIds.length) {
@@ -1437,9 +1451,13 @@ export class AppController {
           .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
           .where(and(inArray(showSeats.id, hold.seatIds as string[]), eq(showSeats.showId, showId), eq(showSeats.status, 'held'), eq(showSeats.heldByUserId, u.sub)));
         await db.update(holds).set({ status: 'expired' }).where(eq(holds.id, holdId));
+        releasedSeatIds = hold.seatIds as string[];
       }
     }
-    this.realtime.emitSeatUpdate(showId);
+    
+    if (releasedSeatIds.length > 0) {
+      this.realtime.emitSeatUpdate(showId, releasedSeatIds, 'available');
+    }
     return { ok: true };
   }
 
