@@ -40,6 +40,8 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
   const [state, setState] = useState<'loading' | 'ready' | 'paying' | 'error' | 'confirmed'>('loading');
   const [message, setMessage] = useState('Securing your seat hold…');
 
+  const [diningState, setDiningState] = useState<{ isDining: boolean; date: string; time: string; area: string; guests: number } | null>(null);
+
   // Authentication & session state
   const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null);
   const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
@@ -117,13 +119,25 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
           if (inventory && inventory.seats) {
             const chosen = inventory.seats.filter(seat => seatIds.includes(seat.id));
             if (chosen.length > 0) setSeats(chosen);
+            
+            const isDiningEvent = inventory.meta?.type === 'dining' || staticEvent?.kind === 'Dining' || params.has('diningDate');
+            if (isDiningEvent && params.has('diningDate')) {
+              setDiningState({
+                isDining: true,
+                date: decodeURIComponent(params.get('diningDate')!),
+                time: decodeURIComponent(params.get('diningTime') || ''),
+                area: decodeURIComponent(params.get('diningArea') || ''),
+                guests: parseInt(params.get('guests') || '2', 10),
+              });
+            }
+
             if (inventory.meta) {
               setEventMeta({
                 title: inventory.meta.title,
                 venue: inventory.meta.venue,
                 city: inventory.meta.city,
-                date: inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : (staticEvent?.date || ''),
-                time: inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : (staticEvent?.time || ''),
+                date: params.get('diningDate') ? decodeURIComponent(params.get('diningDate')!) : (inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : (staticEvent?.date || '')),
+                time: params.get('diningTime') ? decodeURIComponent(params.get('diningTime')!) : (inventory.meta.startsAt ? new Date(inventory.meta.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : (staticEvent?.time || '')),
                 kind: inventory.meta.type || staticEvent?.kind || 'Events',
               });
             }
@@ -213,7 +227,9 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
     return () => clearInterval(timer);
   }, [state]);
 
-  const totalPaise = seats.reduce((sum, seat) => sum + seat.pricePaise, 0);
+  const totalPaise = diningState?.isDining 
+    ? (diningState.guests * 90000)
+    : seats.reduce((sum, seat) => sum + seat.pricePaise, 0);
 
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -626,16 +642,25 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
             </p>
 
             <div className="order-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #282b30', font: '11px var(--mono)' }}>
-              <span style={{ color: 'var(--muted)' }}>Selected Seats</span>
+              <span style={{ color: 'var(--muted)' }}>{diningState ? 'Party Size & Area' : 'Selected Seats'}</span>
               <b style={{ color: 'var(--peach)' }}>
-                {seats.length
+                {diningState
+                  ? `${diningState.guests} ${diningState.guests === 1 ? 'Guest' : 'Guests'} · ${diningState.area}`
+                  : seats.length
                   ? seats.map(s => `${s.row}${s.number} (${s.category || 'Standard'})`).join(', ')
                   : seatIds.join(', ')}
               </b>
             </div>
 
+            {diningState && (
+              <div className="order-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #282b30', font: '11px var(--mono)' }}>
+                <span style={{ color: 'var(--muted)' }}>Reservation Time</span>
+                <b style={{ color: 'var(--paper)' }}>{diningState.date} · {diningState.time}</b>
+              </div>
+            )}
+
             <div className="order-line" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #282b30', font: '11px var(--mono)' }}>
-              <span style={{ color: 'var(--muted)' }}>Subtotal ({seats.length} {seats.length === 1 ? 'seat' : 'seats'})</span>
+              <span style={{ color: 'var(--muted)' }}>{diningState ? 'Cover Deposit' : `Subtotal (${seats.length} ${seats.length === 1 ? 'seat' : 'seats'})`}</span>
               <b style={{ color: 'var(--paper)' }}>₹{Math.round(totalPaise / 100).toLocaleString('en-IN')}</b>
             </div>
 
