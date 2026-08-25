@@ -101,21 +101,6 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [waitlistError, setWaitlistError] = useState('');
 
-  // Live ticking 15-minute hold timer (900 seconds)
-  const [holdTimer, setHoldTimer] = useState(899);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setHoldTimer(prev => (prev > 0 ? prev - 1 : 899));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatTimer = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
 
   // Dynamic 7-day calendar generated from today's date
   const upcomingDates = useMemo(() => {
@@ -306,14 +291,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     loadSeats();
   }, [showId]);
 
-  // Dynamic 1-second background auto-polling for consistency across multiple browsers
-  useEffect(() => {
-    if (!showId) return;
-    const pollTimer = setInterval(() => {
-      loadSeats();
-    }, 1000);
-    return () => clearInterval(pollTimer);
-  }, [showId]);
+
 
   // Real-time WebSocket listener
   useEffect(() => {
@@ -501,10 +479,10 @@ export function SeatPicker({ eventId }: { eventId: string }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ font: '22px var(--mono)', fontWeight: 700, color: 'var(--peach)', letterSpacing: '0.04em', lineHeight: 1 }}>
-                  {formatTimer(holdTimer)}
+                  15:00
                 </span>
                 <span style={{ font: '10px var(--mono)', color: 'var(--muted)', textTransform: 'uppercase' }}>
-                  SERVER SYNC ACTIVE
+                  HOLD WINDOW
                 </span>
               </div>
               <span style={{ fontSize: 11, color: '#c0b6af', display: 'block', marginTop: 2 }}>
