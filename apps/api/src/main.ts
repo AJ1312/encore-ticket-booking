@@ -209,10 +209,10 @@ async function ensureShowSeats(showId: string) {
     // Multi-city show mapping table
     const cityShows: Record<string, { venueId: string; venueName: string; city: string; eventId: string; eventTitle: string; posterUrl: string }> = {
       '55555555-5555-4555-8555-555555555555': {
-        venueId: '33333333-3333-4333-8333-555555555555',
+        venueId: '33333333-3333-4333-8333-333333333333',
         venueName: 'Riverside Grounds',
         city: 'Mumbai',
-        eventId: '44444444-4444-4444-8444-555555555555',
+        eventId: '44444444-4444-4444-8444-444444444444',
         eventTitle: 'The Night We Remember',
         posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
       },
@@ -1286,7 +1286,8 @@ export class AppController {
           else ${showSeats.status} end`,
       })
       .from(showSeats)
-      .innerJoin(seats, eq(showSeats.seatId, seats.id))
+      .innerJoin(shows, eq(showSeats.showId, shows.id))
+      .innerJoin(seats, and(eq(showSeats.seatId, seats.id), eq(seats.venueId, shows.venueId)))
       .where(eq(showSeats.showId, showId));
 
     // Temporary patch: unconditionally run ensureShowSeats so that any previously seeded events get their type updated to 'dining' correctly in existing databases.
@@ -1307,7 +1308,8 @@ export class AppController {
             else ${showSeats.status} end`,
         })
         .from(showSeats)
-        .innerJoin(seats, eq(showSeats.seatId, seats.id))
+        .innerJoin(shows, eq(showSeats.showId, shows.id))
+        .innerJoin(seats, and(eq(showSeats.seatId, seats.id), eq(seats.venueId, shows.venueId)))
         .where(eq(showSeats.showId, showId));
 
       if (!meta) {
