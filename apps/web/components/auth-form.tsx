@@ -22,8 +22,21 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     setNext(new URLSearchParams(window.location.search).get('next'));
   }, []);
 
-  function fillDemo(email: string, pass = 'SeedPassword123!') {
-    setForm(prev => ({ ...prev, email, password: pass }));
+  async function handleDemoLogin(email: string, pass = 'SeedPassword123!') {
+    setBusy(true);
+    setError('');
+    try {
+      const turnstileToken = getToken() || 'demo-bypass';
+      const session = await signIn(email, pass, turnstileToken) as Session;
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('encore_profile', JSON.stringify(session));
+      }
+      window.location.href = next || destination(session.role);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to continue');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submit(event: React.FormEvent) {
@@ -90,24 +103,17 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => fillDemo('admin@encore.local')}
+                onClick={() => handleDemoLogin('admin@encore.local')}
                 style={{ padding: '5px 10px', background: '#25292e', border: '1px solid #3c424a', color: 'var(--paper)', fontSize: 11, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 <ShieldCheck size={12} color="var(--green)" /> Admin
               </button>
               <button
                 type="button"
-                onClick={() => fillDemo('organiser@encore.local')}
+                onClick={() => handleDemoLogin('organiser@encore.local')}
                 style={{ padding: '5px 10px', background: '#25292e', border: '1px solid #3c424a', color: 'var(--paper)', fontSize: 11, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 <Briefcase size={12} color="var(--peach)" /> Organiser
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo('customer@encore.local')}
-                style={{ padding: '5px 10px', background: '#25292e', border: '1px solid #3c424a', color: 'var(--paper)', fontSize: 11, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                <User size={12} color="#a0b0a8" /> Customer
               </button>
             </div>
           </div>
