@@ -85,7 +85,8 @@ export default function OrganiserPage() {
             <div>
               <strong style={{ display: 'block', fontSize: 13, color: '#16211b' }}>Organiser Demo Credentials for Reviewers</strong>
               <span style={{ fontSize: 12, color: '#496050', font: '11px var(--mono)' }}>
-                Email: <strong>organiser@encore.local</strong> &nbsp;|&nbsp; Password: <strong>SeedPassword123!</strong>
+                Email: <strong>organiser@encore.local</strong> &nbsp;|&nbsp; Password: <strong>SeedPassword123!</strong><br/>
+                <span style={{ fontSize: 11, color: '#68796b' }}>(added just for demo)</span>
               </span>
             </div>
           </div>
@@ -98,9 +99,26 @@ export default function OrganiserPage() {
             >
               <LogIn size={13} /> {signingIn ? 'Signing in…' : '1-Click Sign In as Organiser'}
             </button>
-            <span style={{ font: '10px var(--mono)', padding: '5px 10px', background: '#e2eae0', color: '#2d5e3f', textTransform: 'uppercase' }}>
-              Seed Account
-            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const email = prompt('Enter new organiser email:');
+                if (!email) return;
+                const password = prompt('Enter a password (min 8 chars):');
+                if (!password || password.length < 8) return;
+                import('@/lib/auth').then(({ signUp }) => {
+                  signUp('New Organiser', email, password, 'organiser')
+                    .then(() => {
+                      setAuthMsg('Organiser account created successfully! Reloading...');
+                      loadData();
+                    })
+                    .catch(err => setAuthMsg(err.message));
+                });
+              }}
+              style={{ padding: '6px 12px', background: '#fff', border: '1px solid #3a7750', color: '#3a7750', fontSize: 12, borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}
+            >
+              <Plus size={13} /> Sign Up as Organiser
+            </button>
           </div>
         </div>
 

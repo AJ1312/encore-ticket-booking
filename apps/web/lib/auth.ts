@@ -20,12 +20,14 @@ export async function signIn(email: string, password: string): Promise<Session> 
   return data.session;
 }
 
-export async function signUp(name: string, email: string, password: string): Promise<Session> {
+
+
+export async function signUp(name: string, email: string, password: string, role?: 'customer' | 'organiser'): Promise<Session> {
   const r = await fetch(`${API}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, role }),
   });
   if (!r.ok) throw new Error((await r.text()) || 'Unable to register');
   const data = (await r.json()) as { session: Session; accessToken?: string };

@@ -63,9 +63,14 @@ export default function ShowsPage({ params }: { params: Promise<{ id: string }> 
                   <small>{show.venue}, {show.city}</small>
                 </div>
                 <b>On sale</b>
-                <Link href={`/shows/${show.id}`}>
-                  <ArrowUpRight size={16} />
-                </Link>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Link href={`/organiser/events/${id}/shows/${show.id}/seats`} className="ghost-button" style={{ fontSize: 12, padding: '4px 8px', height: 'auto' }}>
+                    Manage Seats
+                  </Link>
+                  <Link href={`/shows/${show.id}`}>
+                    <ArrowUpRight size={16} />
+                  </Link>
+                </div>
               </div>
             ))
           ) : (

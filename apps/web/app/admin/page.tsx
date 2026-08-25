@@ -66,7 +66,8 @@ export default function AdminPage() {
             <div>
               <strong style={{ display: 'block', fontSize: 13, color: '#eef4eb' }}>Admin Demo Credentials for Reviewers</strong>
               <span style={{ fontSize: 12, color: '#9ab5a1', font: '11px var(--mono)' }}>
-                Email: <strong style={{ color: 'var(--paper)' }}>admin@encore.local</strong> &nbsp;|&nbsp; Password: <strong style={{ color: 'var(--peach)' }}>SeedPassword123!</strong>
+                Email: <strong style={{ color: 'var(--paper)' }}>admin@encore.local</strong> &nbsp;|&nbsp; Password: <strong style={{ color: 'var(--peach)' }}>SeedPassword123!</strong><br/>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>(added just for demo)</span>
               </span>
             </div>
           </div>
@@ -96,6 +97,20 @@ export default function AdminPage() {
             <small>Platform bookings</small>
             <strong>{metrics ? metrics.totalBookings.toLocaleString('en-IN') : '2,184'}</strong>
             <span>PostgreSQL source of truth</span>
+          </div>
+          <div>
+            <small>Gross revenue</small>
+            <strong>
+              {metrics 
+                ? (metrics.grossRevenuePaise === -1 ? 'Redacted' : `₹${(metrics.grossRevenuePaise / 100).toLocaleString('en-IN')}`) 
+                : '₹14,20,000'}
+            </strong>
+            <span>All time processed</span>
+          </div>
+          <div>
+            <small>Platform users</small>
+            <strong>{metrics ? metrics.totalUsers : '34,912'}</strong>
+            <span>Registered accounts</span>
           </div>
           <div>
             <small>Active venues</small>
@@ -129,6 +144,13 @@ export default function AdminPage() {
             <h2>BullMQ & Postgres Workers</h2>
             <p>Monitor hold releases, waitlist cascades, emails, and retry failed jobs.</p>
             <Link href="/admin/jobs">Inspect background jobs <ArrowUpRight size={15} /></Link>
+          </section>
+
+          <section className="portal-panel">
+            <span className="eyebrow">Events & Layouts</span>
+            <h2>Platform Events</h2>
+            <p>Pause or resume ticket sales for events globally and manage seat layouts.</p>
+            <Link href="/admin/events">Manage events <ArrowUpRight size={15} /></Link>
           </section>
 
           <section className="portal-panel">

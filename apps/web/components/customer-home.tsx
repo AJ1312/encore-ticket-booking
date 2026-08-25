@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowUpRight, ChevronRight, Clock3, MapPin, Play, Sparkles } from 'lucide-react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 
@@ -25,6 +25,38 @@ export function CustomerHome() {
   const heroRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
   const imageScale = useTransform(scrollYProgress, [0, 1], [1, 1.18]);
+  
+  const [dynamicCards, setDynamicCards] = useState<typeof cards>([]);
+  useEffect(() => {
+    import('@/lib/api').then(({ apiJson }) => {
+      apiJson<{
+        events: Array<{
+          title: string;
+          type: string;
+          posterUrl: string;
+          showId: string;
+          startsAt: string;
+          venue: string;
+          city: string;
+        }>;
+      }>('/events').then(res => {
+        if (res && res.events) {
+          const formatted = res.events.map(ev => ({
+            slug: ev.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+            title: ev.title,
+            type: ev.type.charAt(0).toUpperCase() + ev.type.slice(1),
+            meta: `${ev.venue} · ${new Date(ev.startsAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}`,
+            price: '₹999',
+            image: ev.posterUrl || 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
+          }));
+          setDynamicCards(formatted.slice(0, 4));
+        }
+      }).catch(() => null);
+    });
+  }, []);
+
+  const displayCards = dynamicCards.length > 0 ? dynamicCards : cards;
+
   return <main className="customer-site">
     <PortalNav />
     <section className="home-hero" ref={heroRef}>
@@ -38,7 +70,7 @@ export function CustomerHome() {
       <div className="mood-grid"><Link href="/events?kind=events" className="mood-card mood-orange"><span>01 / Live events</span><strong>Big nights.<br/>Bright lights.</strong><span className="mood-arrow">↗</span></Link><Link href="/events?kind=movies" className="mood-card mood-cream"><span>02 / Cinema</span><strong>Stories worth<br/>leaving home for.</strong><span className="mood-arrow">↗</span></Link><Link href="/events?kind=dining" className="mood-card mood-green"><span>03 / Dining</span><strong>Pull up<br/>a chair.</strong><span className="mood-arrow">↗</span></Link></div>
     </section>
     <section className="feature-section"><div className="feature-image"/><div className="feature-content"><span className="eyebrow"><Sparkles size={13}/> Tonight’s pick</span><h2>The Night<br/><em>We Remember.</em></h2><p>One open-air stage. A handpicked line-up. The kind of night that turns into a group chat name.</p><div className="feature-meta"><span><MapPin size={14}/> Riverside Grounds, Mumbai</span><span><Clock3 size={14}/> Fri, 28 Aug · 8:00 PM</span></div><Link href="/events/the-night-we-remember" className="coral-button">Choose your seats <ArrowUpRight size={17}/></Link></div></section>
-    <section className="rail-section"><div className="section-kicker"><div><span className="eyebrow">Because staying in can wait</span><h2>More to do<br/><em>this week.</em></h2></div><Link href="/events" className="text-link">See the full guide <ArrowUpRight size={15}/></Link></div><div className="card-rail">{cards.map(card => <RailCard key={card.title} card={card}/>)}</div></section>
+    <section className="rail-section"><div className="section-kicker"><div><span className="eyebrow">Because staying in can wait</span><h2>More to do<br/><em>this week.</em></h2></div><Link href="/events" className="text-link">See the full guide <ArrowUpRight size={15}/></Link></div><div className="card-rail">{displayCards.map((card: typeof cards[number]) => <RailCard key={card.title} card={card}/>)}</div></section>
     <section className="promise-strip"><div><span className="eyebrow">The Encore promise</span><h2>Less searching.<br/><em>More showing up.</em></h2></div><div className="promise-points"><div><b>01</b><p>Human-curated picks, not an endless feed.</p></div><div><b>02</b><p>Clear prices and calm checkout, every time.</p></div><div><b>03</b><p>Your tickets live behind one simple profile.</p></div></div></section>
     <PortalFooter />
   </main>;

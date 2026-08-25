@@ -11,6 +11,7 @@ type UserItem = {
   name: string;
   email: string;
   role: string;
+  permissions?: string[];
   createdAt: string;
 };
 
@@ -72,6 +73,23 @@ export default function AdminUsersPage() {
       );
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update user role');
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function updatePermissions(userId: string, newPermissions: string[]) {
+    setUpdatingId(userId);
+    try {
+      await apiJson(`/admin/users/${userId}/permissions`, {
+        method: 'PATCH',
+        body: JSON.stringify({ permissions: newPermissions }),
+      });
+      setUsers(current =>
+        current.map(u => (u.id === userId ? { ...u, permissions: newPermissions } : u))
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update user permissions');
     } finally {
       setUpdatingId(null);
     }
@@ -215,9 +233,43 @@ export default function AdminUsersPage() {
                     <option value="customer">CUSTOMER</option>
                   </select>
                 </div>
-                <span style={{ fontSize: 11, color: '#9ab5a1', font: '11px var(--mono)', textAlign: 'right' }}>
-                  {new Date(u.createdAt).toLocaleDateString('en-IN')}
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                  <span style={{ fontSize: 11, color: '#9ab5a1', font: '11px var(--mono)', textAlign: 'right' }}>
+                    {new Date(u.createdAt).toLocaleDateString('en-IN')}
+                  </span>
+                  {u.role === 'admin' && (
+                    <div style={{ display: 'flex', gap: 8, fontSize: 11, color: '#a4b1be', marginTop: 8 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={u.permissions?.includes('view:financials') || false}
+                          disabled={updatingId === u.id}
+                          onChange={(e) => {
+                            const newPerms = e.target.checked
+                              ? [...(u.permissions || []), 'view:financials']
+                              : (u.permissions || []).filter(p => p !== 'view:financials');
+                            updatePermissions(u.id, newPerms);
+                          }}
+                        />
+                        Financials
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={u.permissions?.includes('manage:venues') || false}
+                          disabled={updatingId === u.id}
+                          onChange={(e) => {
+                            const newPerms = e.target.checked
+                              ? [...(u.permissions || []), 'manage:venues']
+                              : (u.permissions || []).filter(p => p !== 'manage:venues');
+                            updatePermissions(u.id, newPerms);
+                          }}
+                        />
+                        Venues
+                      </label>
+                    </div>
+                  )}
+                </div>
               </div>
             ))
           ) : (

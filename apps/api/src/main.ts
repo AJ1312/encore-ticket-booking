@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Injectable,
   Module,
@@ -16,6 +17,7 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  ForbiddenException,
   ExceptionFilter,
   HttpException,
 } from '@nestjs/common';
@@ -38,6 +40,7 @@ import {
   registerSchema,
   roleSchema,
   seatAvailabilitySchema,
+  seatCreateSchema,
   showCreateSchema,
   venueCreateSchema,
   waitlistSchema,
@@ -64,7 +67,7 @@ import { startWorker, processOne } from './worker';
 import { RealtimeGateway } from './realtime.gateway';
 import { runMigrations } from './db/migrate';
 
-type AccessPayload = { sub: string; name: string; email: string; role: Role };
+
 declare global {
   namespace Express {
     interface Request {
@@ -99,8 +102,10 @@ const secret = () =>
     ? process.env.JWT_ACCESS_SECRET
     : 'encore-production-jwt-access-secret-minimum-32-chars-key!!';
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
-const accessToken = (u: { id: string; name: string; email: string; role: Role }) =>
-  jwt.sign({ sub: u.id, name: u.name, email: u.email, role: u.role }, secret(), { expiresIn: '7d' });
+type AccessPayload = { sub: string; name: string; email: string; role: Role; permissions?: string[] };
+
+const accessToken = (u: { id: string; name: string; email: string; role: Role; permissions?: string[] | null }) =>
+  jwt.sign({ sub: u.id, name: u.name, email: u.email, role: u.role, permissions: u.permissions || [] }, secret(), { expiresIn: '7d' });
 
 function setCookie(res: Response, name: string, value: string, maxAge: number) {
   const isProd = process.env.NODE_ENV === 'production';
@@ -592,6 +597,90 @@ export class AppController {
     return updated;
   }
 
+  // ── Organiser: add new seat ──────────────────────────────────────────────────
+  @Roles('organiser', 'admin')
+  @Post('organiser/shows/:showId/seats')
+  async createSeat(
+    @Param('showId') showId: string,
+    @Body() body: unknown,
+    @Req() req: Request
+  ) {
+    const u = auth(req);
+    const input = seatCreateSchema.safeParse(body);
+    if (!input.success) throw new BadRequestException('Invalid seat details');
+
+    const owner = (
+      await db
+        .select({ organiserId: events.organiserId, venueId: shows.venueId })
+        .from(shows)
+        .innerJoin(events, eq(events.id, shows.eventId))
+        .where(eq(shows.id, showId))
+        .limit(1)
+    )[0];
+
+    if (!owner || (u.role !== 'admin' && owner.organiserId !== u.sub)) {
+      throw new UnauthorizedException();
+    }
+
+    // 1. Create global seat in venue
+    const newSeat = (
+      await db.insert(seats).values({
+        venueId: owner.venueId,
+        section: input.data.section,
+        rowLabel: input.data.rowLabel,
+        seatNumber: input.data.seatNumber,
+        category: input.data.category,
+        pricePaise: input.data.pricePaise,
+        x: 0,
+        y: 0,
+      }).returning({ id: seats.id })
+    )[0];
+
+    // 2. Create showSeat for this specific show
+    const newShowSeat = (
+      await db.insert(showSeats).values({
+        showId,
+        seatId: newSeat.id,
+        status: 'available',
+      }).returning({ id: showSeats.id })
+    )[0];
+
+    this.realtime.emitSeatUpdate(showId);
+    return { success: true, showSeatId: newShowSeat.id };
+  }
+
+  // ── Organiser: delete seat ───────────────────────────────────────────────────
+  @Roles('organiser', 'admin')
+  @Delete('organiser/shows/:showId/seats/:showSeatId')
+  async deleteSeat(
+    @Param('showId') showId: string,
+    @Param('showSeatId') showSeatId: string,
+    @Req() req: Request
+  ) {
+    const u = auth(req);
+    const owner = (
+      await db
+        .select({ organiserId: events.organiserId, status: showSeats.status })
+        .from(showSeats)
+        .innerJoin(shows, eq(shows.id, showSeats.showId))
+        .innerJoin(events, eq(events.id, shows.eventId))
+        .where(and(eq(showSeats.id, showSeatId), eq(showSeats.showId, showId)))
+        .limit(1)
+    )[0];
+
+    if (!owner || (u.role !== 'admin' && owner.organiserId !== u.sub)) {
+      throw new UnauthorizedException();
+    }
+
+    if (owner.status !== 'available' && owner.status !== 'blocked') {
+      throw new ConflictException('Cannot delete a held or booked seat');
+    }
+
+    await db.delete(showSeats).where(eq(showSeats.id, showSeatId));
+    this.realtime.emitSeatUpdate(showId);
+    return { success: true };
+  }
+
   // ── Organiser: show bookings ─────────────────────────────────────────────────
   @Roles('organiser', 'admin')
   @Get('organiser/shows/:showId/bookings')
@@ -719,12 +808,12 @@ export class AppController {
           name: input.data.name,
           email,
           passwordHash: await argon2.hash(input.data.password),
-          role: 'customer',
+          role: input.data.role,
         })
         .returning({ id: users.id, name: users.name, email: users.email, role: users.role })
     )[0];
 
-    return this.issue(user, res);
+    return this.issue({ ...user, permissions: [] }, res);
   }
 
   @Public()
@@ -737,7 +826,7 @@ export class AppController {
     if (!row || !(await argon2.verify(row.passwordHash, input.data.password))) {
       throw new UnauthorizedException('Invalid email or password');
     }
-    return this.issue({ id: row.id, name: row.name, email: row.email, role: row.role }, res);
+    return this.issue({ id: row.id, name: row.name, email: row.email, role: row.role, permissions: row.permissions }, res);
   }
 
   @Public()
@@ -839,7 +928,7 @@ export class AppController {
   @Get('auth/me')
   me(@Req() req: Request) {
     const u = auth(req);
-    return { session: { id: u.sub, name: u.name, email: u.email, role: roleSchema.parse(u.role) } };
+    return { session: { id: u.sub, name: u.name, email: u.email, role: roleSchema.parse(u.role), permissions: u.permissions || [] } };
   }
 
   // ── Bookings ─────────────────────────────────────────────────────────────────
@@ -1249,6 +1338,19 @@ export class AppController {
     const u = await resolveUserOrGuest(req);
     const input = holdSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Select one to eight seats');
+
+    const showEvent = (
+      await db
+        .select({ status: events.status })
+        .from(shows)
+        .innerJoin(events, eq(shows.eventId, events.id))
+        .where(eq(shows.id, showId))
+        .limit(1)
+    )[0];
+
+    if (!showEvent || showEvent.status === 'paused') {
+      throw new ForbiddenException('Sales for this event are currently paused by the administrator.');
+    }
 
     const activeHolds = await db.select({ count: sql<number>`count(*)` })
       .from(showSeats)
@@ -1738,7 +1840,7 @@ export class AppController {
   @Get('admin/users')
   async adminUsers() {
     const rows = await db
-      .select({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt })
+      .select({ id: users.id, name: users.name, email: users.email, role: users.role, permissions: users.permissions, createdAt: users.createdAt })
       .from(users)
       .orderBy(desc(users.createdAt))
       .limit(200);
@@ -1783,6 +1885,20 @@ export class AppController {
   }
 
   @Roles('admin')
+  @Patch('admin/users/:userId/permissions')
+  async adminSetPermissions(@Param('userId') userId: string, @Body() body: unknown) {
+    const { permissions } = body as { permissions: string[] };
+    if (!Array.isArray(permissions)) throw new BadRequestException('Permissions must be an array');
+    
+    // Validate we're not touching our own permissions to prevent lockout
+    const u = (await db.select({ role: users.role }).from(users).where(eq(users.id, userId)))[0];
+    if (!u) throw new NotFoundException('User not found');
+
+    const updated = (await db.update(users).set({ permissions }).where(eq(users.id, userId)).returning({ id: users.id, permissions: users.permissions }))[0];
+    return updated;
+  }
+
+  @Roles('admin')
   @Get('admin/jobs')
   async adminJobs(@Query('status') status?: string) {
     const filter = status ? eq(jobs.status, status as 'pending' | 'processing' | 'completed' | 'failed') : undefined;
@@ -1808,6 +1924,45 @@ export class AppController {
   async listVenues() {
     const rows = await db.select().from(venues).orderBy(asc(venues.name));
     return { venues: rows };
+  }
+
+  @Roles('admin')
+  @Get('admin/events')
+  async adminEvents() {
+    const rows = await db
+      .select({
+        id: events.id,
+        title: events.title,
+        status: events.status,
+        type: events.type,
+        organiserId: events.organiserId,
+        organiserName: users.name,
+        createdAt: events.createdAt,
+      })
+      .from(events)
+      .innerJoin(users, eq(users.id, events.organiserId))
+      .orderBy(desc(events.createdAt));
+
+    const eventsWithShow = await Promise.all(
+      rows.map(async (row) => {
+        const firstShow = await db
+          .select({ id: shows.id })
+          .from(shows)
+          .where(eq(shows.eventId, row.id))
+          .limit(1);
+        return { ...row, showId: firstShow[0]?.id };
+      })
+    );
+    return { events: eventsWithShow };
+  }
+
+  @Roles('admin')
+  @Patch('admin/events/:eventId/status')
+  async adminSetEventStatus(@Param('eventId') eventId: string, @Body() body: unknown) {
+    const { status } = body as { status: 'active' | 'paused' };
+    if (!status) throw new BadRequestException('status is required');
+    await db.update(events).set({ status }).where(eq(events.id, eventId));
+    return { ok: true };
   }
 
   @Roles('organiser', 'admin')
@@ -1853,7 +2008,12 @@ export class AppController {
 
   @Roles('admin')
   @Get('admin/metrics')
-  async adminMetrics() {
+  async adminMetrics(@Req() req: Request) {
+    const u = auth(req);
+    if (!u.permissions?.includes('view:financials')) {
+      throw new UnauthorizedException('Missing required permission: view:financials');
+    }
+
     const [bookingStats] = await db.select({
       totalBookings: sql<number>`count(*)`,
       grossRevenuePaise: sql<number>`coalesce(sum(${bookings.totalPaise}), 0)`,
@@ -1883,7 +2043,7 @@ export class AppController {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
-  private async issue(u: { id: string; name: string; email: string; role: Role }, res: Response, familyId: string = randomUUID()) {
+  private async issue(u: { id: string; name: string; email: string; role: Role; permissions?: string[] | null }, res: Response, familyId: string = randomUUID()) {
     const refresh = randomBytes(48).toString('base64url');
     const token = accessToken(u);
     await db.insert(refreshTokens).values({
