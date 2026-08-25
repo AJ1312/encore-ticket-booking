@@ -8,9 +8,12 @@ import { RealtimeGateway } from './realtime.gateway';
 // This is a custom e2e test suite simulating the full application lifecycle.
 describe('Full Application Suite (E2E)', () => {
   let appController: AppController;
-  let realtimeGateway: RealtimeGateway;
   
-  // Test Data
+  // Mock the RealtimeGateway so emitSeatUpdate is a safe no-op.
+  // In tests, NestJS never boots so this.server is undefined — mocking avoids the crash.
+  const mockGateway = {
+    emitSeatUpdate: () => {},
+  } as unknown as RealtimeGateway;
   let adminUserId: string;
   let customerUserId: string;
   let venueId: string;
@@ -19,10 +22,8 @@ describe('Full Application Suite (E2E)', () => {
   let seatIds: string[] = [];
 
   beforeAll(async () => {
-    // Initialize mock controllers/gateways if doing unit-style e2e
-    // In a real e2e, we would spin up the NestJS application context here.
-    realtimeGateway = new RealtimeGateway();
-    appController = new AppController(realtimeGateway);
+    // Use mock gateway so WebSocket calls don't crash when server is not initialised
+    appController = new AppController(mockGateway);
 
     // 1. Seed base data required for testing
     const [admin] = await db.insert(users).values({
