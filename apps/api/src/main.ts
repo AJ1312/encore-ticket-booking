@@ -2106,12 +2106,6 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   console.log(`[Encore API] Server actively listening on 0.0.0.0:${port}`);
 
-  try {
-    const { fixDb } = await import('./fix-db');
-    await fixDb();
-  } catch (err) {
-    console.warn('[Bootstrap] fixDb warning:', err);
-  }
 
   try {
     await db.insert(jobs).values({ type: 'release_expired_holds', payload: {} }).catch(() => null);
