@@ -159,18 +159,43 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
           <a href="${baseUrl}/shows/${payload.showId}/checkout" class="button">Claim Seats</a>
         `, icons.bell);
       } else if (payload.template === 'event_reminder') {
+        const qrTargetUrl = `${baseUrl}/verify/${payload.bookingRef}`;
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrTargetUrl)}&margin=2`;
         html = wrap(`<h1>It's <em>Time</em></h1>`, `
           <p>Your event is happening today!</p>
           <div class="event-title">${payload.eventTitle || 'the event'}</div>
-          <p>Don't forget to have your QR pass ready. We hope you have a spectacular evening.</p>
-          <a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a>
+          <div style="margin: 24px auto; text-align: center;">
+            <div style="display: inline-block; padding: 14px; background: #ffffff; border-radius: 12px; border: 3px solid #37312e; box-shadow: 0 4px 20px rgba(0,0,0,0.35);">
+              <img src="${qrImageUrl}" alt="Admission QR Pass" width="180" height="180" style="display: block; width: 180px; height: 180px; image-rendering: pixelated; margin: 0 auto;" />
+            </div>
+            <div style="margin-top: 10px; font-family: monospace; font-size: 13px; color: #ff6b35; font-weight: bold; letter-spacing: 1.5px;">
+              REF // ${payload.bookingRef}
+            </div>
+          </div>
+          <p>Don't forget to have your QR pass ready at the venue gate. We hope you have a spectacular evening.</p>
+          <a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View Live Pass</a>
         `, icons.bell);
       } else {
+        const qrTargetUrl = `${baseUrl}/verify/${payload.bookingRef}`;
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrTargetUrl)}&margin=2`;
         html = wrap(`<h1>Pass <em>Ready</em></h1>`, `
           <p>Your ticket pass is confirmed for:</p>
           <div class="event-title">${payload.eventTitle || 'your event'}</div>
-          <p>Your seats are securely locked. Have your QR pass ready at the gate. (Ref: ${payload.bookingRef})</p>
-          <a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View QR Pass</a>
+          
+          <div style="margin: 26px auto; text-align: center;">
+            <div style="display: inline-block; padding: 14px; background: #ffffff; border-radius: 12px; border: 3px solid #37312e; box-shadow: 0 4px 20px rgba(0,0,0,0.35);">
+              <img src="${qrImageUrl}" alt="Admission QR Pass" width="180" height="180" style="display: block; width: 180px; height: 180px; image-rendering: pixelated; margin: 0 auto;" />
+            </div>
+            <div style="margin-top: 10px; font-family: monospace; font-size: 13px; color: #ff6b35; font-weight: bold; letter-spacing: 1.5px;">
+              REF // ${payload.bookingRef}
+            </div>
+            <div style="font-size: 12px; color: #a49d97; margin-top: 4px;">
+              Present this QR code directly at the venue gate for instant admission
+            </div>
+          </div>
+
+          <p>Your seats are securely locked. You can also view or print your full digital ticket pass online anytime.</p>
+          <a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View Digital Pass</a>
         `, icons.check);
       }
     }

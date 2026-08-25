@@ -202,11 +202,11 @@ export function WelcomeModal() {
 
               <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
                 <strong style={{ color: 'var(--peach)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <Bell size={13} color="var(--coral)" /> Batched 5-User Fair Waitlist Dispatcher
+                  <Bell size={13} color="var(--coral)" /> Fair FIFO Waitlist Dispatcher
                 </strong>
-                <p style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-                  When seats open up, notifications trigger in <strong>batches of 5 users</strong> with a <strong>15-minute priority claim countdown</strong> before cascading to subsequent users in FIFO queue.
-                </p>
+                <div style={{ color: '#b0a69f', fontSize: 12, lineHeight: 1.5 }}>
+                  When seats open up, notifications trigger for waitlisted users in strict FIFO priority order with a <strong>15-minute priority claim countdown</strong> before cascading to subsequent users in queue.
+                </div>
               </div>
 
               <div style={{ padding: '12px 14px', background: '#181b1e', border: '1px solid #282c32', borderRadius: 6 }}>
