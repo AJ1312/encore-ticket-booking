@@ -44,13 +44,37 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
         .where(and(eq(holds.status, 'active'), sql`${holds.heldUntil} <= now()`));
 
       // 2. Mark expired waitlist offers
-      await tx.update(waitlistEntries)
+      const expiredOffers = await tx.update(waitlistEntries)
         .set({ status: 'expired' })
-        .where(and(eq(waitlistEntries.status, 'offered'), sql`${waitlistEntries.offerExpiresAt} <= now()`));
+        .where(and(eq(waitlistEntries.status, 'offered'), sql`${waitlistEntries.offerExpiresAt} <= now()`))
+        .returning({ showId: waitlistEntries.showId, category: waitlistEntries.category });
 
       // 3. Re-allocate newly available seats to the waitlist FIFO queue
       for (const hold of expired) {
         await allocateWaitlist(tx, hold.showId, Array.isArray(hold.seatIds) ? (hold.seatIds as string[]) : []);
+      }
+
+      // Re-allocate seats for expired waitlist offers
+      const expiredCategoryCounts: Record<string, number> = {};
+      for (const offer of expiredOffers) {
+        const key = `${offer.showId}|${offer.category}`;
+        expiredCategoryCounts[key] = (expiredCategoryCounts[key] || 0) + 1;
+      }
+
+      for (const key in expiredCategoryCounts) {
+        const [showId, category] = key.split('|');
+        const count = expiredCategoryCounts[key];
+        
+        // Find 'count' number of available seats in this category
+        const availableSeats = await tx.select({ id: showSeats.id })
+          .from(showSeats)
+          .innerJoin(seats, eq(seats.id, showSeats.seatId))
+          .where(and(eq(showSeats.showId, showId), eq(seats.category, category), eq(showSeats.status, 'available')))
+          .limit(count);
+
+        if (availableSeats.length > 0) {
+          await allocateWaitlist(tx, showId, availableSeats.map((s: { id: string }) => s.id));
+        }
       }
     });
   }
@@ -155,7 +179,7 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
         html = wrap(`<h1>Seat <em>Available</em></h1>`, `
           <p>Good news! Seats have opened up for:</p>
           <div class="event-title">${payload.eventTitle || 'the event'}</div>
-          <p>We've reserved these seats for you for the next 15 minutes. Claim them before the timer runs out!</p>
+          <p>We've reserved these seats for you for the next 10 minutes. Claim them before the timer runs out!</p>
           <a href="${baseUrl}/shows/${payload.showId}/checkout" class="button">Claim Seats</a>
         `, icons.bell);
       } else if (payload.template === 'event_reminder') {
@@ -268,30 +292,37 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
 }
 
 export async function allocateWaitlist(tx: any, showId: string, seatIds: string[]) {
-  const categories = new Set<string>();
+  const categoryCounts: Record<string, number> = {};
   for (const showSeatId of seatIds) {
     const seat = (await tx.select({ category: seats.category })
       .from(showSeats)
       .innerJoin(seats, eq(seats.id, showSeats.seatId))
       .where(and(eq(showSeats.id, showSeatId), eq(showSeats.showId, showId), eq(showSeats.status, 'available')))
       .limit(1))[0];
-    if (seat) categories.add(seat.category);
+    if (seat) {
+      categoryCounts[seat.category] = (categoryCounts[seat.category] || 0) + 1;
+    }
   }
 
-  if (categories.size === 0) return;
+  const categories = Object.keys(categoryCounts);
+  if (categories.length === 0) return;
 
   const eventDetails = (await tx.select({ title: events.title }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, showId)).limit(1))[0];
 
   for (const category of categories) {
+    const count = categoryCounts[category];
     const waitingUsers = await tx.select({ id: waitlistEntries.id, userId: waitlistEntries.userId, email: users.email })
       .from(waitlistEntries)
       .innerJoin(users, eq(users.id, waitlistEntries.userId))
       .where(and(eq(waitlistEntries.showId, showId), eq(waitlistEntries.category, category), eq(waitlistEntries.status, 'waiting')))
+      .orderBy(asc(waitlistEntries.createdAt))
+      .limit(count)
       .for('update', { skipLocked: true });
 
     for (const waitlistUser of waitingUsers) {
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
       await tx.update(waitlistEntries)
-        .set({ status: 'offered', offeredAt: new Date(), offerExpiresAt: null })
+        .set({ status: 'offered', offeredAt: new Date(), offerExpiresAt: expiresAt })
         .where(eq(waitlistEntries.id, waitlistUser.id));
 
       if (eventDetails) {

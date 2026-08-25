@@ -272,12 +272,15 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
   async function executeConfirmation() {
     setMessage('Confirming booking & generating unique QR ticket…');
     try {
+      const baseIdem = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `idem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const idempotencyKey = diningState?.isDining && diningState ? `${baseIdem}|${diningState.date}|${diningState.time}|${diningState.area}|${diningState.guests}` : baseIdem;
+
       const result = await apiJson<{ bookingRef: string; qrToken?: string }>('/bookings/confirm', {
         method: 'POST',
         body: JSON.stringify({
           seatIds,
           holdId: holdId || undefined,
-          idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `idem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          idempotencyKey,
           guestEmail: user?.email || authEmail || undefined,
         }),
       }).catch((err) => {

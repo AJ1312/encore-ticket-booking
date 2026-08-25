@@ -24,21 +24,30 @@ export default function OrganiserPage() {
 
   function loadData() {
     apiJson<{ events: OrganiserEvent[] }>('/organiser/events')
-      .then(res => {
+      .then(async res => {
         if (res.events) {
           setEventsList(res.events);
+          
+          // Dynamically fetch total revenue across all events
+          let total = 0;
+          for (const ev of res.events) {
+            const showsRes = await apiJson<{ shows: { id: string }[] }>(`/organiser/events/${ev.id}/shows`).catch(() => null);
+            if (showsRes && showsRes.shows) {
+              for (const sh of showsRes.shows) {
+                const rev = await apiJson<{ totalPaise: number }>(`/organiser/shows/${sh.id}/revenue`).catch(() => null);
+                if (rev && rev.totalPaise) {
+                  total += rev.totalPaise;
+                }
+              }
+            }
+          }
+          if (total > 0) setRevenuePaise(total);
         }
       })
       .catch(() => null)
       .finally(() => {
         setLoading(false);
       });
-
-    apiJson<{ totalPaise: number }>('/organiser/shows/55555555-5555-4555-8555-555555555555/revenue')
-      .then(res => {
-        if (res.totalPaise) setRevenuePaise(res.totalPaise);
-      })
-      .catch(() => null);
   }
 
   useEffect(() => {
