@@ -405,7 +405,13 @@ export function SeatPicker({ eventId }: { eventId: string }) {
 
       const query = seatIdsToHold.join(',');
       const holdQuery = hold.holdId ? `&holdId=${encodeURIComponent(hold.holdId)}` : '';
-      router.push(`/shows/${showId}/checkout?seats=${query}${holdQuery}`);
+      
+      let diningQuery = '';
+      if (isDining) {
+        diningQuery = `&diningDate=${encodeURIComponent(diningDate)}&diningTime=${encodeURIComponent(diningTime)}&diningArea=${encodeURIComponent(diningArea)}&guests=${diningGuests}`;
+      }
+
+      router.push(`/shows/${showId}/checkout?seats=${query}${holdQuery}${diningQuery}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'One or more seats were just held by another customer';
       setHoldError(`Hold Conflict: ${msg}. Refreshing seats…`);
