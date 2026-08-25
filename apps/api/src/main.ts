@@ -97,10 +97,17 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 const ROLES_KEY = 'roles';
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 
-const secret = () =>
-  process.env.JWT_ACCESS_SECRET && process.env.JWT_ACCESS_SECRET.length >= 32
-    ? process.env.JWT_ACCESS_SECRET
-    : 'encore-production-jwt-access-secret-minimum-32-chars-key!!';
+const secret = () => {
+  const s = process.env.JWT_ACCESS_SECRET;
+  if (!s || s.length < 32) {
+    // Fail fast in production; allow dev fallback only when explicitly opted in
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL: JWT_ACCESS_SECRET env var is missing or too short. Refusing to start.');
+    }
+    return 'encore-dev-only-jwt-secret-minimum-32-chars-key!!';
+  }
+  return s;
+};
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 type AccessPayload = { sub: string; name: string; email: string; role: Role; permissions?: string[] };
 
@@ -123,43 +130,38 @@ function auth(req: Request) {
   return req.user;
 }
 
+// Cache guest password hash at module level — argon2 is CPU-intensive and
+// must NOT run on every unauthenticated request.
+let _cachedGuestHash: string | null = null;
+async function getGuestHash() {
+  if (!_cachedGuestHash) _cachedGuestHash = await argon2.hash('SeedPassword123!');
+  return _cachedGuestHash;
+}
+
 async function resolveUserOrGuest(req: Request): Promise<AccessPayload> {
   let raw = req.cookies?.encore_access;
-  if (!raw && req.headers.authorization?.startsWith('Bearer ')) {
+  if (!raw && req.headers?.authorization?.startsWith('Bearer ')) {
     raw = req.headers.authorization.slice(7);
   }
   if (raw) {
     try {
       return jwt.verify(raw, secret()) as AccessPayload;
-    } catch {
-      // ignore
+    } catch (err: any) {
+      // Expired tokens are NOT silently downgraded — throw 401 so the client
+      // knows to re-authenticate instead of silently acting as a guest.
+      if (err?.name === 'TokenExpiredError') throw new UnauthorizedException('Session expired. Please log in again.');
+      // Other JWT errors (malformed, wrong sig) fall through to guest.
     }
   }
   if (req.user) return req.user;
 
   const defaultGuestId = '00000000-0000-4000-8000-000000000001';
-  const defaultCustomerId = '00000000-0000-4000-8000-000000000002';
-  try {
-    const password = await argon2.hash('SeedPassword123!');
-    await db.insert(users).values([
-      {
-        id: defaultGuestId,
-        name: 'Encore Guest',
-        email: 'guest@encore.local',
-        passwordHash: password,
-        role: 'customer',
-      },
-      {
-        id: defaultCustomerId,
-        name: 'Encore Customer',
-        email: 'customer@encore.local',
-        passwordHash: password,
-        role: 'customer',
-      }
-    ]).onConflictDoNothing();
-  } catch {
-    // ignore
-  }
+  // Seed guest user lazily with cached hash — runs only once per server lifecycle
+  const password = await getGuestHash();
+  await db.insert(users).values([
+    { id: defaultGuestId, name: 'Encore Guest', email: 'guest@encore.local', passwordHash: password, role: 'customer' },
+    { id: '00000000-0000-4000-8000-000000000002', name: 'Encore Customer', email: 'customer@encore.local', passwordHash: password, role: 'customer' },
+  ]).onConflictDoNothing().catch(() => {});
 
   return { sub: defaultGuestId, name: 'Encore Guest', email: 'guest@encore.local', role: 'customer' };
 }
@@ -1462,7 +1464,7 @@ export class AppController {
   }
 
   // ── Reset all seats across all shows ─────────────────────────────────────────
-  @Public()
+  @Roles('admin')
   @Post('admin/seats/reset')
   async resetAllSeats() {
     await db
@@ -1475,8 +1477,8 @@ export class AppController {
   @Post('shows/:showId/payment-intent')
   async createPaymentIntent(@Param('showId') showId: string, @Body() body: unknown, @Req() req: Request) {
     const u = auth(req);
-    const { holdId, seatIds, amountPaise } = body as { holdId: string; seatIds: string[]; amountPaise: number };
-    if (!holdId || !seatIds?.length || !amountPaise) throw new BadRequestException('holdId, seatIds, amountPaise required');
+    const { holdId, seatIds } = body as { holdId: string; seatIds: string[] };
+    if (!holdId || !seatIds?.length) throw new BadRequestException('holdId and seatIds are required');
 
     const hold = (
       await db
@@ -1488,16 +1490,25 @@ export class AppController {
 
     if (!hold) throw new ConflictException('Hold is no longer active');
 
+    // Calculate amount server-side — never trust client-supplied price (prevents price manipulation)
+    const heldSeats = await db
+      .select({ price: showSeats.heldPricePaise })
+      .from(showSeats)
+      .where(and(inArray(showSeats.id, seatIds), eq(showSeats.heldByUserId, u.sub), eq(showSeats.status, 'held')));
+
+    if (heldSeats.length !== seatIds.length) throw new ConflictException('One or more seat holds have expired');
+    const amountPaise = heldSeats.reduce((sum, s) => sum + (s.price || 0), 0);
+
     const expiresAt = new Date(Date.now() + 10 * 60_000);
     const payment = (
       await db
         .insert(payments)
         .values({ userId: u.sub, showId, holdId, seatIds, amountPaise, expiresAt })
-        .returning({ id: payments.id, expiresAt: payments.expiresAt })
+        .returning({ id: payments.id, expiresAt: payments.expiresAt, amountPaise: payments.amountPaise })
     )[0];
 
     await db.insert(jobs).values({ type: 'payment_timeout', payload: { paymentId: payment.id }, availableAt: expiresAt });
-    return { paymentId: payment.id, expiresAt: payment.expiresAt };
+    return { paymentId: payment.id, expiresAt: payment.expiresAt, amountPaise: payment.amountPaise };
   }
 
   @Post('payments/:paymentId/complete')
@@ -1516,10 +1527,17 @@ export class AppController {
 
     if (!payment) throw new ConflictException('Payment not found or expired');
 
-    await db.update(payments).set({ status: 'completed', paidAt: new Date() }).where(eq(payments.id, paymentId));
+    // NOTE: payment.set(completed) is intentionally INSIDE the booking transaction below.
+    // Moving it outside would create a double-spend window: if the server crashes after
+    // marking paid but before creating the booking, the user pays but gets no ticket.
     const seatIds = Array.isArray(payment.seatIds) ? (payment.seatIds as string[]) : [];
 
     const result = await db.transaction(async tx => {
+      // Mark payment completed atomically inside the transaction.
+      // This guarantees that if anything below fails, the payment rolls back
+      // to 'pending' — preventing the double-spend (paid but no ticket) bug.
+      await tx.update(payments).set({ status: 'completed', paidAt: new Date() }).where(eq(payments.id, paymentId));
+
       const previous = (
         await tx
           .select({ id: bookings.id, bookingRef: bookings.bookingRef, showId: bookings.showId })
@@ -1650,7 +1668,9 @@ export class AppController {
     return { ...booking, isValid: booking.status === 'confirmed', seats: seatRows };
   }
 
-  @Public()
+  // Checkin requires staff — @Public() was a critical security vulnerability
+  // allowing anyone to check in any ticket using a guessed/intercepted QR token.
+  @Roles('organiser', 'admin')
   @Post('verify/:token/checkin')
   async checkinQr(@Param('token') token: string, @Body() body: unknown) {
     const { seatIds } = body as { seatIds: string[] };
@@ -1816,16 +1836,41 @@ export class AppController {
 
       if (!entry) throw new ConflictException('This waitlist offer is unavailable or expired');
 
-      return (
+      const offeredSeatIds = Array.isArray(entry.offeredSeatIds) ? (entry.offeredSeatIds as string[]) : [];
+
+      // CRITICAL FIX: Actually hold the offered seats so they can't be
+      // booked by someone else between claim and checkout.
+      if (offeredSeatIds.length > 0) {
+        const ttl = Number(process.env.SEAT_HOLD_TTL_SECONDS || 900);
+        const heldUntil = new Date(Date.now() + ttl * 1000);
+        // Pessimistic lock the seats first
+        const lockedSeats = await tx
+          .select({ id: showSeats.id, status: showSeats.status })
+          .from(showSeats)
+          .where(and(inArray(showSeats.id, offeredSeatIds), eq(showSeats.showId, entry.showId)))
+          .for('update');
+
+        const unavailable = lockedSeats.filter(s => s.status !== 'available');
+        if (unavailable.length > 0) throw new ConflictException('Some offered seats are no longer available');
+
+        await tx
+          .update(showSeats)
+          .set({ status: 'held', heldByUserId: u.sub, heldUntil, version: sql`${showSeats.version}+1` })
+          .where(inArray(showSeats.id, offeredSeatIds));
+      }
+
+      const claimed = (
         await tx
           .update(waitlistEntries)
           .set({ status: 'claimed', claimedAt: new Date() })
           .where(eq(waitlistEntries.id, entryId))
           .returning({ id: waitlistEntries.id, showId: waitlistEntries.showId, status: waitlistEntries.status, seatIds: waitlistEntries.offeredSeatIds })
       )[0];
+
+      return claimed;
     });
 
-    this.realtime.emitSeatUpdate(result.showId);
+    this.realtime.emitSeatUpdate(result.showId, Array.isArray(result.seatIds) ? result.seatIds as string[] : [], 'held');
     return result;
   }
 

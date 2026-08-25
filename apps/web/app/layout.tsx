@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { WelcomeModal } from '@/components/welcome-modal';
 import { CookieBanner } from '@/components/cookie-banner';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: 'Encore — Ticketing, beautifully considered',
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <WelcomeModal />
         <CookieBanner />
         {children}
+        <Analytics />
       </body>
     </html>
   );
