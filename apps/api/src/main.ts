@@ -331,14 +331,21 @@ async function ensureShowSeats(showId: string) {
       timezone: 'Asia/Kolkata',
     }).onConflictDoNothing();
 
+    let eventType: 'concert' | 'comedy' | 'dining' = 'concert';
+    if (cfg.eventTitle.toLowerCase().includes('comedy')) eventType = 'comedy';
+    else if (cfg.eventTitle.toLowerCase().includes('vinyl') || cfg.eventTitle.toLowerCase().includes('dine') || cfg.eventTitle.toLowerCase().includes('brunch')) eventType = 'dining';
+
     await db.insert(events).values({
       id: cfg.eventId,
       organiserId: defaultOrganiserId,
       title: cfg.eventTitle,
       description: 'An intimate live set under the city lights.',
-      type: 'concert',
+      type: eventType,
       posterUrl: cfg.posterUrl,
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: events.id,
+      set: { type: eventType }
+    });
 
     // Check if show already exists and update eventId / venueId if mismatch
     const existingShow = (await db.select().from(shows).where(eq(shows.id, showId)).limit(1))[0];
@@ -1193,8 +1200,10 @@ export class AppController {
       .innerJoin(seats, eq(showSeats.seatId, seats.id))
       .where(eq(showSeats.showId, showId));
 
+    // Temporary patch: unconditionally run ensureShowSeats so that any previously seeded events get their type updated to 'dining' correctly in existing databases.
+    await ensureShowSeats(showId);
+    
     if (!result.length) {
-      await ensureShowSeats(showId);
       result = await db
         .select({
           id: showSeats.id,
