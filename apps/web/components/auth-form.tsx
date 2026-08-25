@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, KeyRound, ShieldCheck, Sparkles, User, Briefcase } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { signIn, signUp } from '@/lib/auth';
-import { useTurnstile } from '@/hooks/use-turnstile';
+
 import type { Session } from '@encore/shared';
 
 function destination(role: string) {
@@ -16,7 +16,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const { containerRef, getToken } = useTurnstile(mode === 'login' ? 'login' : 'signup');
+
 
   useEffect(() => {
     setNext(new URLSearchParams(window.location.search).get('next'));
@@ -26,8 +26,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true);
     setError('');
     try {
-      const turnstileToken = getToken() || 'demo-bypass';
-      const session = await signIn(email, pass, turnstileToken) as Session;
+      const session = await signIn(email, pass) as Session;
       if (typeof window !== 'undefined') {
         window.localStorage.setItem('encore_profile', JSON.stringify(session));
       }
@@ -44,14 +43,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true);
     setError('');
     try {
-      const turnstileToken = getToken();
-      if (!turnstileToken) {
-        setError('Please complete the security check before continuing.');
-        return;
-      }
       const session = (mode === 'login'
-        ? await signIn(form.email, form.password, turnstileToken)
-        : await signUp(form.name, form.email, form.password, undefined, turnstileToken)) as Session;
+        ? await signIn(form.email, form.password)
+        : await signUp(form.name, form.email, form.password)) as Session;
 
       if (typeof window !== 'undefined') {
         window.localStorage.setItem('encore_profile', JSON.stringify(session));
@@ -161,8 +155,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
 
           {error && <p className="form-error">{error}</p>}
 
-          {/* Cloudflare Turnstile challenge — required before submit */}
-          <div ref={containerRef} style={{ margin: '12px 0' }} />
+
 
           <button className="coral-button" disabled={busy} style={{ width: '100%', justifyContent: 'center' }}>
             {busy ? 'Opening…' : mode === 'login' ? 'Sign in' : 'Create account'} <span>↗</span>

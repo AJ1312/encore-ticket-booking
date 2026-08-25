@@ -97,59 +97,7 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 const ROLES_KEY = 'roles';
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 
-/**
- * Canonical Cloudflare Turnstile server-side siteverify.
- * Returns true if the token is valid for the expected action.
- * Skips verification in dev/test when TURNSTILE_SECRET is not set (so local dev is unaffected).
- * In production, always enforces.
- */
-async function verifyTurnstile(
-  token: string | undefined,
-  action: string,
-  remoteIp?: string,
-): Promise<boolean> {
-  const turnstileSecret = process.env.TURNSTILE_SECRET;
-  // In non-production without a secret configured, skip enforcement
-  if (!turnstileSecret) {
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('[Turnstile] TURNSTILE_SECRET not set in production — rejecting all requests');
-      return false;
-    }
-    return true; // dev/test: pass-through
-  }
-  if (!token || token.length === 0 || token.length > 2048) return false;
-  const expectedHostnames = new Set(
-    (process.env.TURNSTILE_HOSTNAMES ?? '')
-      .split(',')
-      .map(h => h.trim())
-      .filter(Boolean),
-  );
-  // In production require explicit hostname allowlist
-  if (process.env.NODE_ENV === 'production' && expectedHostnames.size === 0) {
-    console.warn('[Turnstile] TURNSTILE_HOSTNAMES not set in production — rejecting all requests');
-    return false;
-  }
-  try {
-    const params = new URLSearchParams({ secret: turnstileSecret, response: token });
-    if (remoteIp) params.append('remoteip', remoteIp);
-    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      signal: AbortSignal.timeout(10_000),
-      body: params,
-    });
-    if (!r.ok) throw new Error(`siteverify ${r.status}`);
-    const result = await r.json() as { success: boolean; action?: string; hostname?: string };
-    if (!result.success) return false;
-    // Validate action matches what we expect
-    if (result.action && result.action !== action) return false;
-    // Validate hostname is in our allowlist (skip in dev where set is empty)
-    if (expectedHostnames.size > 0 && result.hostname && !expectedHostnames.has(result.hostname)) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
+
 
 const secret = () => {
   const s = process.env.JWT_ACCESS_SECRET;
@@ -853,10 +801,7 @@ export class AppController {
   async register(@Body() body: unknown, @Res({ passthrough: true }) res: Response, @Req() req: Request) {
     const input = registerSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Invalid registration details');
-    const cfToken = (body as Record<string, unknown>)?.['cf-turnstile-response'] as string | undefined;
-    if (!await verifyTurnstile(cfToken, 'signup', req.ip)) {
-      throw new ForbiddenException('Bot protection check failed. Please complete the challenge.');
-    }
+
     const email = input.data.email.toLowerCase();
     const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
     if (existing[0]) throw new ConflictException('Email already registered');
@@ -882,10 +827,7 @@ export class AppController {
   async login(@Body() body: unknown, @Res({ passthrough: true }) res: Response, @Req() req: Request) {
     const input = loginSchema.safeParse(body);
     if (!input.success) throw new UnauthorizedException('Invalid email or password');
-    const cfToken = (body as Record<string, unknown>)?.['cf-turnstile-response'] as string | undefined;
-    if (!await verifyTurnstile(cfToken, 'login', req.ip)) {
-      throw new ForbiddenException('Bot protection check failed. Please complete the challenge.');
-    }
+
     const row = (await db.select().from(users).where(eq(users.email, input.data.email.toLowerCase())).limit(1))[0];
     if (!row || !(await argon2.verify(row.passwordHash, input.data.password))) {
       throw new UnauthorizedException('Invalid email or password');
@@ -899,10 +841,7 @@ export class AppController {
   async forgotPassword(@Body() body: unknown, @Req() req: Request) {
     const input = passwordResetRequestSchema.safeParse(body);
     if (!input.success) throw new BadRequestException('Invalid email');
-    const cfToken = (body as Record<string, unknown>)?.['cf-turnstile-response'] as string | undefined;
-    if (!await verifyTurnstile(cfToken, 'forgot-password', req.ip)) {
-      throw new ForbiddenException('Bot protection check failed. Please complete the challenge.');
-    }
+
     const user = (await db.select({ id: users.id }).from(users).where(eq(users.email, input.data.email.toLowerCase())).limit(1))[0];
     const response: { ok: boolean; resetToken?: string } = { ok: true };
     if (user) {

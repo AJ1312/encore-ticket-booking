@@ -3,27 +3,23 @@ import Link from 'next/link';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { useState } from 'react';
 import { apiJson } from '@/lib/api';
-import { useTurnstile } from '@/hooks/use-turnstile';
+
 
 export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [devToken, setDevToken] = useState('');
-  const { containerRef, getToken } = useTurnstile('forgot-password');
+
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
-    const turnstileToken = getToken();
-    if (!turnstileToken) {
-      setError('Please complete the security check before continuing.');
-      return;
-    }
+
     try {
       const result = await apiJson<{ ok: boolean; resetToken?: string }>('/auth/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ email, 'cf-turnstile-response': turnstileToken }),
+        body: JSON.stringify({ email }),
       });
       setDevToken(result.resetToken || '');
       setSent(true);
@@ -65,8 +61,7 @@ export default function ForgotPasswordPage() {
                 />
               </label>
               {error && <p className="form-error">{error}</p>}
-              {/* Cloudflare Turnstile challenge — required before submit */}
-              <div ref={containerRef} style={{ margin: '12px 0' }} />
+
               <button className="coral-button"><Mail size={15} /> Send reset link</button>
             </form>
           </>

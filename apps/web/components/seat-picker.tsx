@@ -1303,6 +1303,36 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                   Done
                 </button>
               </div>
+            ) : !user ? (
+              <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#1e2535', color: 'var(--peach)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
+                  <Bell size={22} />
+                </div>
+                <h3 style={{ font: '28px var(--serif)', color: 'var(--paper)', margin: '0 0 8px' }}>
+                  Get Notified When {isDining ? 'Tables' : 'Seats'} Open
+                </h3>
+                <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 24px' }}>
+                  Encore sends instant notifications with an exclusive <strong>15-minute claim window</strong> when a spot opens up. You need a free account so we know where to reach you.
+                </p>
+                <Link
+                  href={`/register?next=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/')}`}
+                  className="coral-button"
+                  style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 12 }}
+                  onClick={() => setWaitlistOpen(false)}
+                >
+                  Create a free account ↗
+                </Link>
+                <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>
+                  Already have an account?{' '}
+                  <Link
+                    href={`/login?next=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/')}`}
+                    style={{ color: 'var(--peach)' }}
+                    onClick={() => setWaitlistOpen(false)}
+                  >
+                    Sign in
+                  </Link>
+                </p>
+              </div>
             ) : (
               <form onSubmit={submitWaitlist}>
                 <span className="eyebrow"><Bell size={13} /> Fairness Waitlist Dispatcher</span>

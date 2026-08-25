@@ -27,8 +27,7 @@ Copy the example environment file and configure it:
 ```bash
 cp .env.example .env
 ```
-Ensure `DATABASE_URL` points to PostgreSQL and `REDIS_URL` points to your Redis instance.
-Set `BETTER_AUTH_SECRET` (at least 32 characters) and `BETTER_AUTH_URL` for authentication.
+Ensure `DATABASE_URL` is correctly pointed to your PostgreSQL instance and `JWT_ACCESS_SECRET` is at least 32 characters long.
 
 ### 3. Start Backing Services
 Start the required local infrastructure (PostgreSQL, Redis) using Docker:
@@ -36,10 +35,10 @@ Start the required local infrastructure (PostgreSQL, Redis) using Docker:
 docker-compose up -d
 ```
 
-Next, run the Prisma database migrations and seed it with demo data:
+Next, run the database migrations and seed it with demo data:
 ```bash
-pnpm dlx prisma migrate dev
-pnpm dlx prisma db seed
+pnpm --filter @encore/api db:migrate
+pnpm --filter @encore/api db:seed
 ```
 
 ### 4. Start the Application
