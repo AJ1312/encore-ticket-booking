@@ -29,7 +29,12 @@ cp .env.example .env
 Ensure `DATABASE_URL` is correctly pointed to your PostgreSQL instance and `JWT_ACCESS_SECRET` is at least 32 characters long.
 
 ### 3. Database Migration and Seeding
-Run the database migrations and seed it with demo data (events, venues, demo users):
+First, start the local PostgreSQL database using Docker (or ensure your external database is running):
+```bash
+docker-compose up -d
+```
+
+Next, run the database migrations and seed it with demo data (events, venues, demo users):
 ```bash
 pnpm --filter @encore/api db:migrate
 pnpm --filter @encore/api db:seed
@@ -77,9 +82,9 @@ Encore runs a resilient asynchronous worker (via BullMQ or a lightweight databas
 ### Waitlist Auto-Assignment Flow
 The waitlist operates on a strict **FIFO (First-In, First-Out)** basis natively inside the database transaction:
 1. When a seat becomes available (via hold expiration or booking cancellation), the worker queries the oldest `waiting` user in the `waitlist_entries` table for that specific show and category.
-2. If found, the system *automatically* places a new 15-minute hold on the seat for that waitlisted user.
+2. If found, the system *automatically* places a new 10-minute hold on the seat for that waitlisted user.
 3. The waitlist entry is updated to `offered` and assigned a TTL (`offerExpiresAt`).
-4. An automated email (via Resend) is dispatched informing the user they have 15 minutes to claim their tickets. If they fail to checkout, the cycle repeats.
+4. An automated email (via Resend) is dispatched informing the user they have 10 minutes to claim their tickets. If they fail to checkout, the cycle repeats.
 
 ---
 
