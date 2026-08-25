@@ -20,7 +20,7 @@ const defaultEvents = [
     id: '44444444-4444-4444-8444-444444444444',
     organiserId: defaultOrganiserId,
     title: 'The Night We Remember',
-    description: 'One open-air stage, a handpicked line-up, and the kind of night that turns into a group chat name.',
+    description: 'An intimate indoor stage, a handpicked line-up, and the kind of night that turns into a group chat name.',
     type: 'concert' as const,
     posterUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85',
     showId: '55555555-5555-4555-8555-555555555555',

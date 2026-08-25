@@ -17,10 +17,10 @@ export default function WaitlistOfferPage({ params }: { params: Promise<{ entryI
   const [entry, setEntry] = useState<{ showId: string; offeredSeatIds: string[]; eventTitle?: string; venue?: string; category?: string } | null>(null);
 
   useEffect(() => {
-    apiJson<{ waitlist: any[] }>(`/waitlist/${entryId}`)
+    apiJson<any>(`/waitlist/${entryId}`)
       .then(res => {
-        if (res.waitlist && res.waitlist[0]) {
-          setEntry(res.waitlist[0]);
+        if (res && res.showId) {
+          setEntry(res);
         }
       })
       .catch(() => null);

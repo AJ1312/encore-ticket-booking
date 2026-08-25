@@ -180,7 +180,7 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
           <p>Good news! Seats have opened up for:</p>
           <div class="event-title">${payload.eventTitle || 'the event'}</div>
           <p>We've reserved these seats for you for the next 10 minutes. Claim them before the timer runs out!</p>
-          <a href="${baseUrl}/shows/${payload.showId}/checkout" class="button">Claim Seats</a>
+          <a href="${baseUrl}/waitlist/${payload.entryId}" class="button">Claim Seats</a>
         `, icons.bell);
       } else if (payload.template === 'event_reminder') {
         const qrTargetUrl = `${baseUrl}/verify/${payload.bookingRef}`;
@@ -333,6 +333,7 @@ export async function allocateWaitlist(tx: any, showId: string, seatIds: string[
             subject: `Encore Waitlist — Seats Available!`,
             eventTitle: eventDetails.title,
             showId: showId,
+            entryId: waitlistUser.id,
             template: 'waitlist_offer'
           }
         });
