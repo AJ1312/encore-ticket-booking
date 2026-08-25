@@ -884,6 +884,8 @@ export class AppController {
           venue: venues.name,
           city: venues.city,
           customerName: users.name,
+          idempotencyKey: bookings.idempotencyKey,
+          eventType: events.type,
         })
         .from(bookings)
         .innerJoin(shows, eq(shows.id, bookings.showId))
@@ -928,7 +930,21 @@ export class AppController {
       .innerJoin(seats, eq(seats.id, showSeats.seatId))
       .where(eq(bookingSeats.bookingId, sql`(select id from bookings where booking_ref=${bookingRef})`));
 
-    const { qrTokenHash, ...safeRow } = row;
+    const { qrTokenHash, idempotencyKey, eventType, ...safeRow } = row;
+    
+    // Extract dining metadata from idempotencyKey if applicable
+    if (eventType === 'dining' && idempotencyKey.includes('|')) {
+      const parts = idempotencyKey.split('|');
+      if (parts.length >= 4) {
+        safeRow.startsAt = new Date(`${parts[1]} ${parts[2]}`);
+        for (const seat of seatRows) {
+          seat.category = parts[3]; // Override category with dining area
+          seat.row = ''; // Clear row/number for dining
+          seat.number = 0;
+        }
+      }
+    }
+
     return { ...safeRow, seats: seatRows };
   }
 
@@ -1051,7 +1067,9 @@ export class AppController {
           throw new ConflictException('All seats must belong to the same show');
         }
 
-        const total = held.reduce((sum, s) => sum + (s.price || 0), 0);
+        const eventMeta = (await tx.select({ type: events.type }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, held[0].showId)).limit(1))[0];
+        const isDining = eventMeta?.type === 'dining';
+        const total = isDining ? held.length * 90000 : held.reduce((sum, s) => sum + (s.price || 0), 0);
         const ref = `ENC-${randomUUID().slice(0, 8).toUpperCase()}`;
         const qrRaw = randomBytes(48).toString('base64url');
         const qrHash = digest(qrRaw);
@@ -1089,26 +1107,34 @@ export class AppController {
         if (categoriesSet.size > 0) {
           const eventDetails = (await tx.select({ title: events.title }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, created.showId)).limit(1))[0];
           for (const cat of categoriesSet) {
-            const missedUsers = await tx.select({ id: waitlistEntries.id, userId: waitlistEntries.userId, email: users.email })
-              .from(waitlistEntries)
-              .innerJoin(users, eq(users.id, waitlistEntries.userId))
-              .where(and(eq(waitlistEntries.showId, created.showId), eq(waitlistEntries.category, cat), eq(waitlistEntries.status, 'offered')))
-              .for('update', { skipLocked: true });
+            // Check if there are still any available seats in this category
+            const availableSeatsCount = (await tx.select({ count: sql<number>`count(*)` })
+              .from(showSeats)
+              .innerJoin(seats, eq(seats.id, showSeats.seatId))
+              .where(and(eq(showSeats.showId, created.showId), eq(seats.category, cat), eq(showSeats.status, 'available'))))[0].count;
 
-            for (const mu of missedUsers) {
-              // Reset to waiting so they can be notified again if another seat opens
-              await tx.update(waitlistEntries).set({ status: 'waiting', offeredAt: null }).where(eq(waitlistEntries.id, mu.id));
-              
-              await tx.insert(jobs).values({
-                type: 'email_notification',
-                payload: {
-                  to: mu.email,
-                  subject: 'Encore Waitlist — Seats Booked Again',
-                  eventTitle: eventDetails?.title || 'the event',
-                  showId: created.showId,
-                  template: 'waitlist_missed'
-                }
-              });
+            if (Number(availableSeatsCount) === 0) {
+              const missedUsers = await tx.select({ id: waitlistEntries.id, userId: waitlistEntries.userId, email: users.email })
+                .from(waitlistEntries)
+                .innerJoin(users, eq(users.id, waitlistEntries.userId))
+                .where(and(eq(waitlistEntries.showId, created.showId), eq(waitlistEntries.category, cat), eq(waitlistEntries.status, 'offered')))
+                .for('update', { skipLocked: true });
+
+              for (const mu of missedUsers) {
+                // Reset to waiting so they can be notified again if another seat opens
+                await tx.update(waitlistEntries).set({ status: 'waiting', offeredAt: null, offerExpiresAt: null }).where(eq(waitlistEntries.id, mu.id));
+                
+                await tx.insert(jobs).values({
+                  type: 'email_notification',
+                  payload: {
+                    to: mu.email,
+                    subject: 'Encore Waitlist — Seats Booked Again',
+                    eventTitle: eventDetails?.title || 'the event',
+                    showId: created.showId,
+                    template: 'waitlist_missed'
+                  }
+                });
+              }
             }
           }
         }
