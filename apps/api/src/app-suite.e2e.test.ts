@@ -95,7 +95,7 @@ describe('Full Application Suite (E2E)', () => {
 
   it('should successfully hold a seat using pessimistic locking', async () => {
     // We mock the Request object that the controller expects
-    const mockRequest = { user: { sub: customerUserId, role: 'customer' } } as any;
+    const mockRequest = { user: { sub: customerUserId, role: 'customer' }, headers: {}, cookies: {} } as any;
     
     const result = await appController.hold(showId, { seatIds: [seatIds[0]] }, mockRequest);
     
@@ -110,7 +110,7 @@ describe('Full Application Suite (E2E)', () => {
   });
 
   it('should fail to double-book a held seat', async () => {
-    const mockRequest = { user: { sub: adminUserId, role: 'admin' } } as any; // different user
+    const mockRequest = { user: { sub: adminUserId, role: 'admin' }, headers: {}, cookies: {} } as any; // different user
     
     await expect(
       appController.hold(showId, { seatIds: [seatIds[0]] }, mockRequest)
@@ -118,7 +118,7 @@ describe('Full Application Suite (E2E)', () => {
   });
 
   it('should successfully release a hold', async () => {
-    const mockRequest = { user: { sub: customerUserId, role: 'customer' } } as any;
+    const mockRequest = { user: { sub: customerUserId, role: 'customer' }, headers: {}, cookies: {} } as any;
     
     await appController.releaseHold(showId, { seatIds: [seatIds[0]] }, mockRequest);
 
