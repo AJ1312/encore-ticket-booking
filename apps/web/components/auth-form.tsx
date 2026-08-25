@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, KeyRound, ShieldCheck, Sparkles, User, Briefcase } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { signIn, signUp } from '@/lib/auth';
-import { useTurnstile } from '@/hooks/use-turnstile';
+
 import type { Session } from '@encore/shared';
 
 function destination(role: string) {
@@ -16,14 +16,26 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const { containerRef, getToken } = useTurnstile(mode === 'login' ? 'login' : 'signup');
+
 
   useEffect(() => {
     setNext(new URLSearchParams(window.location.search).get('next'));
   }, []);
 
-  function fillDemo(email: string, pass = 'SeedPassword123!') {
-    setForm(prev => ({ ...prev, email, password: pass }));
+  async function handleDemoLogin(email: string, pass = 'SeedPassword123!') {
+    setBusy(true);
+    setError('');
+    try {
+      const session = await signIn(email, pass) as Session;
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('encore_profile', JSON.stringify(session));
+      }
+      window.location.href = next || destination(session.role);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to continue');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submit(event: React.FormEvent) {
@@ -31,14 +43,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true);
     setError('');
     try {
-      const turnstileToken = getToken();
-      if (!turnstileToken) {
-        setError('Please complete the security check before continuing.');
-        return;
-      }
       const session = (mode === 'login'
-        ? await signIn(form.email, form.password, turnstileToken)
-        : await signUp(form.name, form.email, form.password, undefined, turnstileToken)) as Session;
+        ? await signIn(form.email, form.password)
+        : await signUp(form.name, form.email, form.password)) as Session;
 
       if (typeof window !== 'undefined') {
         window.localStorage.setItem('encore_profile', JSON.stringify(session));
@@ -90,24 +97,17 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => fillDemo('admin@encore.local')}
+                onClick={() => handleDemoLogin('admin@encore.local')}
                 style={{ padding: '5px 10px', background: '#25292e', border: '1px solid #3c424a', color: 'var(--paper)', fontSize: 11, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 <ShieldCheck size={12} color="var(--green)" /> Admin
               </button>
               <button
                 type="button"
-                onClick={() => fillDemo('organiser@encore.local')}
+                onClick={() => handleDemoLogin('organiser@encore.local')}
                 style={{ padding: '5px 10px', background: '#25292e', border: '1px solid #3c424a', color: 'var(--paper)', fontSize: 11, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 <Briefcase size={12} color="var(--peach)" /> Organiser
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo('customer@encore.local')}
-                style={{ padding: '5px 10px', background: '#25292e', border: '1px solid #3c424a', color: 'var(--paper)', fontSize: 11, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                <User size={12} color="#a0b0a8" /> Customer
               </button>
             </div>
           </div>
@@ -155,8 +155,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
 
           {error && <p className="form-error">{error}</p>}
 
-          {/* Cloudflare Turnstile challenge — required before submit */}
-          <div ref={containerRef} style={{ margin: '12px 0' }} />
+
 
           <button className="coral-button" disabled={busy} style={{ width: '100%', justifyContent: 'center' }}>
             {busy ? 'Opening…' : mode === 'login' ? 'Sign in' : 'Create account'} <span>↗</span>
