@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X, Users, Utensils, LogIn, KeyRound, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, startTransition } from 'react';
+import { useEffect, useMemo, useState, useCallback, startTransition } from 'react';
 import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
 import { getEvent, encoreEvents } from '@/lib/events';
@@ -160,19 +160,65 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     return seats.filter(s => s.status === 'available');
   }, [seats]);
 
+  // Deterministic live availability calculation across Date, Time Slot, Seating Area, and Party Size
+  const calculateSlotAvailability = useCallback((dateStr: string, timeStr: string, areaStr: string, guests: number) => {
+    if (availableSeats.length <= 0) return 0;
+
+    // Max physical tables for this venue & party size
+    const maxVenueCapacity = Math.max(1, Math.floor(Math.max(12, seats.length || 72) / Math.max(1, guests)));
+
+    // Area maximum allocation
+    let areaMax = 8;
+    if (areaStr.includes('Chef')) areaMax = 2;
+    else if (areaStr.includes('Window') || areaStr.includes('Booth')) areaMax = 4;
+    else if (areaStr.includes('Garden') || areaStr.includes('Patio')) areaMax = 5;
+    else areaMax = Math.min(14, maxVenueCapacity);
+
+    // Time slot demand factor
+    let timeMultiplier = 0.75;
+    if (timeStr === '7:45 PM') timeMultiplier = 0.35; // Peak Prime
+    else if (timeStr === '8:30 PM') timeMultiplier = 0.45; // Prime Dinner
+    else if (timeStr === '7:00 PM') timeMultiplier = 0.55;
+    else if (timeStr === '12:30 PM') timeMultiplier = 0.9; // Lunch high availability
+    else if (timeStr === '1:30 PM') timeMultiplier = 0.8;
+    else if (timeStr === '9:15 PM') timeMultiplier = 0.65;
+
+    // Date demand factor (Weekends have higher booking rates)
+    let dateMultiplier = 0.85;
+    const lowerDate = dateStr.toLowerCase();
+    if (lowerDate.includes('sat') || lowerDate.includes('fri')) {
+      dateMultiplier = 0.45;
+    } else if (lowerDate.includes('sun')) {
+      dateMultiplier = 0.6;
+    } else if (lowerDate.includes('wed') || lowerDate.includes('thu')) {
+      dateMultiplier = 0.75;
+    } else {
+      dateMultiplier = 0.95; // Weekdays
+    }
+
+    // Party size factor: larger parties have fewer available combined tables
+    const partyFactor = guests >= 6 ? 0.4 : guests >= 4 ? 0.7 : 1.0;
+
+    // Real-time backend seat occupancy weight
+    const occupancyFactor = seats.length > 0 ? (availableSeats.length / seats.length) : 0.8;
+
+    const rawCount = Math.round(areaMax * timeMultiplier * dateMultiplier * partyFactor * Math.max(0.35, occupancyFactor));
+    return Math.max(0, Math.min(areaMax, rawCount));
+  }, [availableSeats.length, seats.length]);
+
   const diningAvailableCount = useMemo(() => {
     if (!isDining) return 0;
-    return Math.max(0, Math.floor(availableSeats.length / Math.max(1, diningGuests)));
-  }, [isDining, availableSeats, diningGuests]);
+    return calculateSlotAvailability(diningDate, diningTime, diningArea, diningGuests);
+  }, [isDining, calculateSlotAvailability, diningDate, diningTime, diningArea, diningGuests]);
 
   useEffect(() => {
     if (!isDining) return;
-    if (availableSeats.length >= diningGuests) {
+    if (diningAvailableCount > 0 && availableSeats.length >= diningGuests) {
       setSelected(availableSeats.slice(0, diningGuests).map(s => s.id));
     } else {
       setSelected([]);
     }
-  }, [isDining, availableSeats, diningGuests, diningTime, diningDate]);
+  }, [isDining, diningAvailableCount, availableSeats, diningGuests, diningTime, diningDate, diningArea]);
 
   const total = useMemo(() => {
     if (isDining) {
@@ -491,21 +537,21 @@ export function SeatPicker({ eventId }: { eventId: string }) {
             <div
               style={{
                 padding: '8px 16px',
-                background: diningAvailableCount <= 3 ? '#2d1815' : '#142318',
-                border: `1px solid ${diningAvailableCount <= 3 ? '#632d25' : '#2b4738'}`,
+                background: diningAvailableCount === 0 ? '#2d1414' : diningAvailableCount <= 2 ? '#2d1815' : '#142318',
+                border: `1px solid ${diningAvailableCount === 0 ? '#8c2222' : diningAvailableCount <= 2 ? '#632d25' : '#2b4738'}`,
                 borderRadius: 6,
-                color: diningAvailableCount <= 3 ? '#ff927e' : 'var(--green)',
+                color: diningAvailableCount === 0 ? '#ff8080' : diningAvailableCount <= 2 ? '#ff927e' : 'var(--green)',
                 font: '12px var(--mono)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
               }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: diningAvailableCount <= 3 ? '#ff6b35' : '#52b788', display: 'inline-block' }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: diningAvailableCount === 0 ? '#ef4444' : diningAvailableCount <= 2 ? '#ff6b35' : '#52b788', display: 'inline-block' }} />
               <span>
                 {diningAvailableCount > 0
-                  ? `⚡ Limited Seating: ${diningAvailableCount} ${diningAvailableCount === 1 ? 'table' : 'tables'} available`
-                  : '⚠️ High Demand: Fully booked for this slot'}
+                  ? `⚡ ${diningAvailableCount} ${diningAvailableCount === 1 ? 'table' : 'tables'} available · ${diningArea} (${diningTime})`
+                  : `⚠️ High Demand: ${diningArea} is fully booked at ${diningTime}`}
               </span>
             </div>
 
@@ -738,37 +784,53 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                 <label style={{ display: 'block', color: 'var(--paper)', font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
                   3. Select Seating Time
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
                   {diningTimes.map(t => {
                     const isSelected = diningTime === t.time;
+                    const slotCount = calculateSlotAvailability(diningDate, t.time, diningArea, diningGuests);
+                    const isSoldOut = slotCount === 0;
+
                     return (
                       <button
                         key={t.time}
                         type="button"
                         onClick={() => setDiningTime(t.time)}
                         style={{
-                          padding: '14px 12px',
-                          background: isSelected ? '#1b2c1f' : '#14181a',
-                          border: `1.5px solid ${isSelected ? 'var(--green)' : '#2d2824'}`,
+                          padding: '12px 10px',
+                          background: isSelected ? '#1b2c1f' : isSoldOut ? '#161313' : '#14181a',
+                          border: `1.5px solid ${isSelected ? 'var(--green)' : isSoldOut ? '#3d2020' : '#2d2824'}`,
                           borderRadius: 6,
                           textAlign: 'center',
                           cursor: 'pointer',
                           display: 'flex',
+                          flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: 8,
+                          gap: 5,
                           transition: 'all 0.15s ease',
+                          opacity: isSoldOut && !isSelected ? 0.75 : 1,
                         }}
                       >
-                        <Clock size={14} color={isSelected ? 'var(--green)' : 'var(--muted)'} />
-                        <strong style={{ font: '14px var(--mono)', color: isSelected ? '#d8f3dc' : 'var(--paper)' }}>
-                          {t.time}
-                        </strong>
-                        {t.isPopular && (
-                          <span style={{ fontSize: 9, font: '9px var(--mono)', padding: '2px 5px', borderRadius: 3, background: 'rgba(224,122,95,0.2)', color: 'var(--peach)' }}>
-                            Prime
-                          </span>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Clock size={13} color={isSelected ? 'var(--green)' : isSoldOut ? '#ff8080' : 'var(--muted)'} />
+                          <strong style={{ font: '14px var(--mono)', color: isSelected ? '#d8f3dc' : 'var(--paper)' }}>
+                            {t.time}
+                          </strong>
+                          {t.isPopular && (
+                            <span style={{ fontSize: 8, font: '8px var(--mono)', padding: '1px 4px', borderRadius: 3, background: 'rgba(224,122,95,0.2)', color: 'var(--peach)' }}>
+                              Prime
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ font: '10px var(--mono)', fontSize: 10 }}>
+                          {isSoldOut ? (
+                            <span style={{ color: '#ff8080' }}>Sold Out</span>
+                          ) : slotCount <= 2 ? (
+                            <span style={{ color: '#ff927e' }}>⚡ {slotCount} {slotCount === 1 ? 'table' : 'tables'} left</span>
+                          ) : (
+                            <span style={{ color: isSelected ? 'var(--green)' : '#9ec5ab' }}>✓ {slotCount} available</span>
+                          )}
+                        </div>
                       </button>
                     );
                   })}
@@ -780,29 +842,39 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                 <label style={{ display: 'block', color: 'var(--paper)', font: '11px var(--mono)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
                   4. Seating Ambience & Area
                 </label>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
                   {diningAreas.map(area => {
                     const isSelected = diningArea === area;
+                    const areaCount = calculateSlotAvailability(diningDate, diningTime, area, diningGuests);
+                    const isSoldOut = areaCount === 0;
+
                     return (
                       <button
                         key={area}
                         type="button"
                         onClick={() => setDiningArea(area)}
                         style={{
-                          padding: '10px 18px',
-                          background: isSelected ? '#251b18' : '#14181a',
-                          border: `1.5px solid ${isSelected ? 'var(--peach)' : '#2d2824'}`,
+                          padding: '12px 14px',
+                          background: isSelected ? '#251b18' : isSoldOut ? '#161313' : '#14181a',
+                          border: `1.5px solid ${isSelected ? 'var(--peach)' : isSoldOut ? '#3d2020' : '#2d2824'}`,
                           borderRadius: 6,
                           color: isSelected ? 'var(--paper)' : 'var(--muted)',
                           fontSize: 13,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 6,
+                          justifyContent: 'space-between',
+                          gap: 8,
+                          opacity: isSoldOut && !isSelected ? 0.75 : 1,
                         }}
                       >
-                        <Check size={14} color={isSelected ? 'var(--coral)' : 'transparent'} />
-                        <span>{area}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Check size={14} color={isSelected ? 'var(--coral)' : 'transparent'} />
+                          <span style={{ fontWeight: isSelected ? 600 : 400 }}>{area}</span>
+                        </div>
+                        <span style={{ font: '10px var(--mono)', fontSize: 10, color: isSoldOut ? '#ff8080' : areaCount <= 2 ? '#ff927e' : 'var(--green)' }}>
+                          {isSoldOut ? 'Sold out' : areaCount <= 2 ? `${areaCount} left` : `${areaCount} tables`}
+                        </span>
                       </button>
                     );
                   })}
@@ -816,7 +888,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                   Instant Table Lock: Your table is exclusively held for 15 minutes upon continuing to checkout.
                 </span>
                 <span style={{ font: '11px var(--mono)', color: diningAvailableCount > 0 ? 'var(--green)' : '#ff927e' }}>
-                  {diningAvailableCount > 0 ? `✓ ${diningAvailableCount} Tables Available Now` : '⚠️ Fully Booked for this Slot'}
+                  {diningAvailableCount > 0 ? `✓ ${diningAvailableCount} ${diningAvailableCount === 1 ? 'Table' : 'Tables'} Available for ${diningDate}` : `⚠️ Fully Booked at ${diningTime} · Join Waitlist`}
                 </span>
               </div>
             </div>
