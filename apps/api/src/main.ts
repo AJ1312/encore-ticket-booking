@@ -1456,7 +1456,7 @@ export class AppController {
       .innerJoin(seats, eq(seats.id, showSeats.seatId))
       .where(eq(bookingSeats.bookingId, booking.id));
 
-    return { ...booking, seats: seatRows };
+    return { ...booking, isValid: booking.status === 'confirmed', seats: seatRows };
   }
 
   @Public()
@@ -1474,7 +1474,7 @@ export class AppController {
         .limit(1)
     )[0];
     if (!booking) throw new NotFoundException('Invalid QR token');
-    if (booking.status === 'cancelled') throw new ConflictException('Booking is cancelled');
+    if (booking.status === 'cancelled') throw new ConflictException('Booking is cancelled and invalid for admission');
 
     const results: { seatId: string; alreadyCheckedIn: boolean }[] = [];
     for (const seatId of seatIds) {

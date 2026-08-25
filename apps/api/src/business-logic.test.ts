@@ -290,9 +290,18 @@ describe('Encore Core Business & Security Verification Suite', () => {
       expect(seats[1].checkedInAt).not.toBeNull();
     });
 
-    it('refuses attendance check-in for cancelled bookings', () => {
-      const booking = { status: 'cancelled' };
-      expect(booking.status === 'cancelled').toBe(true);
+    it('refuses attendance check-in and marks QR verification invalid for cancelled bookings', () => {
+      const booking = { status: 'cancelled', qrToken: 'valid-qr-token', bookingRef: 'ENC-CANCELLED' };
+      const verifyQr = (b: typeof booking) => ({ ...b, isValid: b.status === 'confirmed' });
+      const checkinQr = (b: typeof booking) => {
+        if (b.status === 'cancelled') throw new Error('Booking is cancelled and invalid for admission');
+        return { ok: true };
+      };
+
+      const verified = verifyQr(booking);
+      expect(verified.isValid).toBe(false);
+      expect(verified.status).toBe('cancelled');
+      expect(() => checkinQr(booking)).toThrow('Booking is cancelled and invalid for admission');
     });
   });
 

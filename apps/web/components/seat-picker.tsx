@@ -1142,7 +1142,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
                 </div>
                 <h3 style={{ font: '28px var(--serif)', color: 'var(--paper)', margin: '0 0 8px' }}>Notification Active</h3>
                 <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
-                  If a reservation is cancelled for <strong>{waitlistCategory}</strong>, you will receive an offer in the first batch of 5 users with an exclusive 15-minute priority booking window.
+                  If a reservation is cancelled for <strong>{waitlistCategory}</strong>, you will receive an offer in FIFO order with an exclusive 15-minute priority booking window.
                 </p>
                 <button
                   className="coral-button"
