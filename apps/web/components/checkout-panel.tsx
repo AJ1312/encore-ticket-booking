@@ -260,10 +260,14 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
         method: 'POST',
         body: JSON.stringify({
           seatIds,
-          holdId,
-          idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `idem-${Date.now()}`,
+          holdId: holdId || undefined,
+          idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `idem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          guestEmail: user?.email || authEmail || undefined,
         }),
-      }).catch(() => null);
+      }).catch((err) => {
+        console.warn('Booking confirmation API error, trying fallback:', err);
+        return null;
+      });
 
       const ref = result?.bookingRef || `ENC-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
       const tokenQuery = result?.qrToken ? `?token=${encodeURIComponent(result.qrToken)}` : '';

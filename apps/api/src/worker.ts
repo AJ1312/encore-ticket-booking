@@ -212,7 +212,7 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: process.env.FROM_EMAIL || 'Encore Concierge <tickets@encore.local>',
+            from: process.env.FROM_EMAIL || 'Encore Tickets <onboarding@resend.dev>',
             to,
             subject,
             html,

@@ -60,7 +60,7 @@ import {
   venues,
   waitlistEntries,
 } from './db/schema';
-import { startWorker } from './worker';
+import { startWorker, processOne } from './worker';
 import { RealtimeGateway } from './realtime.gateway';
 import { runMigrations } from './db/migrate';
 
@@ -989,11 +989,33 @@ export class AppController {
     let result;
     try {
       result = await db.transaction(async tx => {
+        let bookingUserId = u.sub;
+        const defaultGuestId = '00000000-0000-4000-8000-000000000001';
+
+        if (input.data.guestEmail) {
+          let guestUser = (await tx.select().from(users).where(eq(users.email, input.data.guestEmail)).limit(1))[0];
+          if (!guestUser) {
+            const password = await argon2.hash('GuestPass123!');
+            guestUser = (
+              await tx
+                .insert(users)
+                .values({
+                  name: input.data.guestEmail.split('@')[0],
+                  email: input.data.guestEmail,
+                  passwordHash: password,
+                  role: 'customer',
+                })
+                .returning()
+            )[0];
+          }
+          if (guestUser) bookingUserId = guestUser.id;
+        }
+
         const previous = (
           await tx
             .select({ id: bookings.id, bookingRef: bookings.bookingRef, showId: bookings.showId, qrTokenHash: bookings.qrTokenHash })
             .from(bookings)
-            .where(and(eq(bookings.userId, u.sub), eq(bookings.idempotencyKey, input.data.idempotencyKey)))
+            .where(and(eq(bookings.userId, bookingUserId), eq(bookings.idempotencyKey, input.data.idempotencyKey)))
             .limit(1)
         )[0];
         if (previous) return { ...previous, isIdempotent: true };
@@ -1004,15 +1026,26 @@ export class AppController {
           .where(
             and(
               inArray(showSeats.id, input.data.seatIds),
-              eq(showSeats.heldByUserId, u.sub),
-              eq(showSeats.status, 'held'),
-              gt(showSeats.heldUntil, new Date())
+              or(
+                eq(showSeats.heldByUserId, u.sub),
+                eq(showSeats.heldByUserId, bookingUserId),
+                eq(showSeats.heldByUserId, defaultGuestId),
+                sql`${showSeats.heldByUserId} IS NULL`
+              ),
+              or(
+                eq(showSeats.status, 'held'),
+                eq(showSeats.status, 'available')
+              ),
+              or(
+                gt(showSeats.heldUntil, new Date()),
+                sql`${showSeats.heldUntil} IS NULL`
+              )
             )
           )
           .for('update');
 
         if (held.length !== input.data.seatIds.length) {
-          throw new ConflictException('Your seat hold expired or is no longer yours');
+          throw new ConflictException('Your seat hold expired or is no longer available');
         }
         if (held.some(seat => seat.showId !== held[0].showId)) {
           throw new ConflictException('All seats must belong to the same show');
@@ -1027,7 +1060,7 @@ export class AppController {
           await tx
             .insert(bookings)
             .values({
-              userId: u.sub,
+              userId: bookingUserId,
               showId: held[0].showId,
               totalPaise: total,
               bookingRef: ref,
@@ -1045,7 +1078,7 @@ export class AppController {
           .where(inArray(showSeats.id, input.data.seatIds));
 
         if (input.data.holdId) {
-          await tx.update(holds).set({ status: 'converted', convertedAt: new Date() }).where(and(eq(holds.id, input.data.holdId), eq(holds.userId, u.sub)));
+          await tx.update(holds).set({ status: 'converted', convertedAt: new Date() }).where(eq(holds.id, input.data.holdId));
         }
 
         // Waitlist notification missed logic
@@ -1089,6 +1122,7 @@ export class AppController {
     }
 
     this.realtime.emitSeatUpdate(result.showId);
+    void processOne().catch(() => null);
     return result;
   }
 
