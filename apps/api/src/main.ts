@@ -822,7 +822,7 @@ export class AppController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   @Post('auth/login')
   async login(@Body() body: unknown, @Res({ passthrough: true }) res: Response, @Req() req: Request) {
     const input = loginSchema.safeParse(body);
@@ -836,7 +836,7 @@ export class AppController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   @Post('auth/forgot-password')
   async forgotPassword(@Body() body: unknown, @Req() req: Request) {
     const input = passwordResetRequestSchema.safeParse(body);
@@ -857,7 +857,7 @@ export class AppController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   @Post('auth/reset-password')
   async resetPassword(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
     const input = passwordResetSchema.safeParse(body);
@@ -2130,7 +2130,7 @@ export class AppController {
 }
 
 @Module({
-  imports: [ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }])],
+  imports: [ThrottlerModule.forRoot([{ ttl: 60000, limit: 1000 }])],
   controllers: [RootController, AppController],
   providers: [RealtimeGateway, { provide: APP_GUARD, useClass: AuthGuard }, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
@@ -2145,6 +2145,8 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
+  const expressInstance = app.getHttpAdapter().getInstance();
+  expressInstance.set('trust proxy', 1);
   app.use(helmet());
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
