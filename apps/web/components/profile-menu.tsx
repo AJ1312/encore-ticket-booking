@@ -17,7 +17,23 @@ export function ProfileMenu() {
   const loginHref = pathname ? `/login?next=${encodeURIComponent(pathname)}` : '/login';
   const registerHref = pathname ? `/register?next=${encodeURIComponent(pathname)}` : '/register';
 
-  function syncProfile() {
+  function syncProfile(sessionData?: any) {
+    // Handle explicit null (sign-out broadcast) without touching localStorage
+    if (sessionData === null) {
+      setSession(null);
+      return;
+    }
+
+    // If we received a direct session payload, use it
+    if (sessionData && sessionData.id) {
+      setSession(sessionData);
+      try {
+        window.localStorage.setItem('encore_profile', JSON.stringify(sessionData));
+      } catch {}
+      return;
+    }
+
+    // Otherwise, try localStorage then API
     try {
       const stored = window.localStorage.getItem('encore_profile');
       if (stored) {
@@ -28,7 +44,7 @@ export function ProfileMenu() {
     }
 
     // Check with server authority
-    apiJson<{ session?: Session; user?: Session }>('/auth/me')
+    apiJson<{ session?: Session | null; user?: Session }>('/auth/me')
       .then(res => {
         const active = res.session || res.user;
         if (active) {
@@ -38,22 +54,22 @@ export function ProfileMenu() {
           } catch {
             // ignore
           }
+        } else {
+          // Server confirmed no session (returned null) — clear local state
+          setSession(null);
         }
       })
       .catch(() => {
-        setSession(null);
-        try {
-          window.localStorage.removeItem('encore_profile');
-          window.localStorage.removeItem('encore_token');
-        } catch {}
+        // Network error — keep the cached local session; don't wipe on every
+        // connectivity blip. The server will reject API calls if the token is stale.
       });
   }
 
   useEffect(() => {
     syncProfile();
 
-    const handleProfileUpdate = () => {
-      syncProfile();
+    const handleProfileUpdate = (e: Event) => {
+      syncProfile((e as CustomEvent).detail);
     };
 
     window.addEventListener('profile-updated', handleProfileUpdate);

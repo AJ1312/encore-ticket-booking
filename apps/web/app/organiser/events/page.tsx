@@ -68,10 +68,8 @@ export default function OrganiserEventsPage() {
     setSigningIn(true);
     setAuthMsg('');
     try {
-      const session = await signIn('organiser@encore.local', 'SeedPassword123!');
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('encore_profile', JSON.stringify(session));
-      }
+      // signIn() handles storing encore_token, encore_profile, and dispatching profile-updated
+      await signIn('organiser@encore.local', 'SeedPassword123!');
       setAuthMsg('Logged in as Organiser! Loaded all owned events.');
       loadEvents();
     } catch (err: any) {

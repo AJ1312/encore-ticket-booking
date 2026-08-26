@@ -44,7 +44,11 @@ export async function signOut(): Promise<void> {
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem('encore_token');
     window.localStorage.removeItem('encore_profile');
+    // Clear both the access and refresh cookies so there's no auto-login on next visit
     document.cookie = 'encore_access=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'encore_refresh=; path=/; max-age=0; SameSite=Lax';
+    // Dispatch event so profile menu / notification bell re-render immediately
+    window.dispatchEvent(new CustomEvent('profile-updated', { detail: null }));
   }
   try {
     await fetch(`${API}/api/auth/logout`, {
