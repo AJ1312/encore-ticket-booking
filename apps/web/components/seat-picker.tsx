@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft, Bell, Check, ChevronRight, Clock, Info, Minus, Plus, ShieldCheck, Sparkles, X, Users, Utensils, LogIn, KeyRound, AlertTriangle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, useCallback, startTransition } from 'react';
 import { PortalFooter } from './portal-footer';
 import { PortalNav } from './portal-nav';
@@ -27,6 +27,12 @@ type DiningTable = {
 
 export function SeatPicker({ eventId }: { eventId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Waitlist preselect: comma-separated showSeat IDs passed from /waitlist/:id claim redirect
+  const preselectIds = useMemo(() => {
+    const raw = searchParams.get('preselect');
+    return raw ? raw.split(',').filter(Boolean) : [];
+  }, [searchParams]);
   const staticEvent = getEvent(eventId);
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
   const showId = isUUID ? eventId : staticEvent?.showId;
@@ -293,13 +299,22 @@ export function SeatPicker({ eventId }: { eventId: string }) {
       .then(result => {
         startTransition(() => {
           // Sort seats by row then number so Zone View always picks A1, A2...
-          // (not arbitrary DB insertion order which caused E8/E9/E10 default bug)
           const sortedSeats = (result.seats || []).slice().sort((a, b) => {
             if (a.row < b.row) return -1;
             if (a.row > b.row) return 1;
             return a.number - b.number;
           });
           setSeats(sortedSeats);
+
+          // Auto-select waitlist preselected seats (they were held by /claim)
+          if (preselectIds.length > 0) {
+            const validIds = preselectIds.filter(id =>
+              sortedSeats.some(s => s.id === id && (s.status === 'available' || s.status === 'held'))
+            );
+            if (validIds.length > 0) {
+              setSelected(validIds);
+            }
+          }
           if (result.meta) {
             const matched = staticEvent || encoreEvents.find(e => 
               (showId && (e.showId === showId || e.slug === showId)) || 
