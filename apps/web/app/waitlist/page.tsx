@@ -69,8 +69,8 @@ export default function WaitlistPage() {
                 </Link>
               ) : (
                 item.showId ? (
-                  <Link href={`/events/${item.showId}`} className="portal-link">
-                    View event details <ChevronRight size={14} />
+                  <Link href={`/shows/${item.showId}/seats`} className="portal-link">
+                    Pick seats for this event <ChevronRight size={14} />
                   </Link>
                 ) : null
               )}
