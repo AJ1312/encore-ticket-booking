@@ -85,8 +85,11 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   const [view, setView] = useState<'map' | 'list' | 'zone'>('map');
 
   useEffect(() => {
-    if (isConcert) setView('zone');
-  }, [isConcert]);
+    // Dining and Movies use map view; concerts, comedy, and other events use zone view by default
+    if (!isDining && eventMeta?.kind?.toLowerCase() !== 'movies') {
+      setView('zone');
+    }
+  }, [isDining, eventMeta?.kind]);
   const [zoom, setZoom] = useState(100);
   const [hoveredSeat, setHoveredSeat] = useState<Seat | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
@@ -105,7 +108,12 @@ export function SeatPicker({ eventId }: { eventId: string }) {
 
   // Notify / Waitlist modal state
   const [waitlistOpen, setWaitlistOpen] = useState(false);
-  const [waitlistCategory, setWaitlistCategory] = useState(isDining ? 'Table for 4' : 'Premium');
+  const [waitlistCategory, setWaitlistCategory] = useState(() => {
+    // Use matchedStatic to determine dining at init time (isDining is computed
+    // from eventMeta which starts as 'Events', so can't be used here safely)
+    const isInitiallyDining = matchedStatic?.kind?.toLowerCase() === 'dining';
+    return isInitiallyDining ? 'Table for 4' : 'Premium';
+  });
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistSuccess, setWaitlistSuccess] = useState(false);
   const [waitlistLoading, setWaitlistLoading] = useState(false);
@@ -160,7 +168,10 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     return cats.map(cat => {
       const catSeats = seats.filter(s => (s.category || 'Standard') === cat);
       const available = catSeats.filter(s => s.status === 'available');
-      const selectedCount = selected.filter(id => seats.find(s => s.id === id)?.category === cat).length;
+      const selectedCount = selected.filter(id => {
+        const s = seats.find(seat => seat.id === id);
+        return (s?.category || 'Economy') === cat;
+      }).length;
       return {
         name: cat,
         price: catSeats[0]?.pricePaise || 99900,

@@ -1,4 +1,4 @@
-import { and, asc, eq, lte, gt, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, lte, gt, sql } from 'drizzle-orm';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { db } from './db/client';
@@ -97,9 +97,15 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
           await tx.update(payments).set({ status: 'timed_out', timedOutAt: new Date() }).where(eq(payments.id, row.id));
           const seatIds = Array.isArray(row.seatIds) ? (row.seatIds as string[]) : [];
           if (seatIds.length) {
+            // Only release the specific seats tied to this payment — not ALL seats
+            // the user holds (which would incorrectly cancel concurrent valid holds).
             await tx.update(showSeats)
               .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version} + 1` })
-              .where(and(eq(showSeats.heldByUserId, row.userId), eq(showSeats.status, 'held')));
+              .where(and(
+                inArray(showSeats.id, seatIds),
+                eq(showSeats.heldByUserId, row.userId),
+                eq(showSeats.status, 'held')
+              ));
             await tx.update(holds)
               .set({ status: 'cancelled', cancelledAt: new Date() })
               .where(and(eq(holds.id, row.holdId), eq(holds.status, 'active')));

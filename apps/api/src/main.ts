@@ -203,7 +203,7 @@ async function ensureShowSeats(showId: string) {
     const defaultAdminId = '11111111-1111-4111-8111-111111111111';
     const defaultCustomerId = '00000000-0000-4000-8000-000000000002';
 
-    const password = await argon2.hash('SeedPassword123!');
+    const password = await getGuestHash();
     await db.insert(users).values([
       { id: defaultAdminId, name: 'Encore Admin', email: 'admin@encore.local', passwordHash: password, role: 'admin' },
       { id: defaultOrganiserId, name: 'Encore Organiser', email: 'organiser@encore.local', passwordHash: password, role: 'organiser' },
@@ -341,8 +341,20 @@ async function ensureShowSeats(showId: string) {
     }).onConflictDoNothing();
 
     let eventType: 'concert' | 'comedy' | 'dining' = 'concert';
-    if (cfg.eventTitle.toLowerCase().includes('comedy')) eventType = 'comedy';
-    else if (cfg.eventTitle.toLowerCase().includes('vinyl') || cfg.eventTitle.toLowerCase().includes('dine') || cfg.eventTitle.toLowerCase().includes('brunch')) eventType = 'dining';
+    const titleLower = cfg.eventTitle.toLowerCase();
+    if (titleLower.includes('comedy')) eventType = 'comedy';
+    else if (
+      titleLower.includes('vinyl') ||
+      titleLower.includes('dine') ||
+      titleLower.includes('brunch') ||
+      titleLower.includes('dining') ||
+      titleLower.includes('canteen') ||
+      titleLower.includes('bistro') ||
+      titleLower.includes('social') ||
+      titleLower.includes('hops') ||
+      titleLower.includes('plates') ||
+      titleLower.includes('jazz')
+    ) eventType = 'dining';
 
     await db.insert(events).values({
       id: cfg.eventId,
@@ -371,7 +383,7 @@ async function ensureShowSeats(showId: string) {
       }).onConflictDoNothing();
     }
 
-    let venueSeats = await db.select({ id: seats.id }).from(seats).where(eq(seats.venueId, venueIdToUse));
+    let venueSeats = await db.select({ id: seats.id }).from(seats).where(eq(seats.venueId, cfg.venueId));
     if (!venueSeats.length) {
       const inventory = Array.from({ length: 72 }, (_, i) => ({
         venueId: venueIdToUse,
