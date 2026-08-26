@@ -932,10 +932,20 @@ export class AppController {
     return { ok: true };
   }
 
+  @Public()
   @Get('auth/me')
   me(@Req() req: Request) {
-    const u = auth(req);
-    return { session: { id: u.sub, name: u.name, email: u.email, role: roleSchema.parse(u.role), permissions: u.permissions || [] } };
+    let raw = req.cookies?.encore_access;
+    if (!raw && req.headers?.authorization?.startsWith('Bearer ')) {
+      raw = req.headers.authorization.slice(7);
+    }
+    if (!raw) return { session: null };
+    try {
+      const u = jwt.verify(raw, secret()) as AccessPayload;
+      return { session: { id: u.sub, name: u.name, email: u.email, role: roleSchema.parse(u.role), permissions: u.permissions || [] } };
+    } catch {
+      return { session: null };
+    }
   }
 
   // ── Bookings ─────────────────────────────────────────────────────────────────
@@ -1279,7 +1289,7 @@ export class AppController {
 
     let meta = showMeta[0] || null;
 
-    let result = await db
+    const seatQuery = () => db
       .select({
         id: showSeats.id,
         row: seats.rowLabel,
@@ -1295,29 +1305,15 @@ export class AppController {
       .from(showSeats)
       .innerJoin(shows, eq(showSeats.showId, shows.id))
       .innerJoin(seats, and(eq(showSeats.seatId, seats.id), eq(seats.venueId, shows.venueId)))
-      .where(eq(showSeats.showId, showId));
+      .where(eq(showSeats.showId, showId))
+      .orderBy(asc(seats.rowLabel), asc(seats.seatNumber));
 
-    // Temporary patch: unconditionally run ensureShowSeats so that any previously seeded events get their type updated to 'dining' correctly in existing databases.
-    await ensureShowSeats(showId);
-    
+    let result = await seatQuery();
+
     if (!result.length) {
-      result = await db
-        .select({
-          id: showSeats.id,
-          row: seats.rowLabel,
-          number: seats.seatNumber,
-          category: seats.category,
-          section: seats.section,
-          pricePaise: sql<number>`coalesce(${showSeats.heldPricePaise},${seats.pricePaise})`,
-          status: sql<string>`case 
-            when ${showSeats.status}='held' and ${showSeats.heldUntil}<=now() then 'available' 
-            when ${showSeats.status}='held' and ${showSeats.heldByUserId}=${u.sub} then 'available'
-            else ${showSeats.status} end`,
-        })
-        .from(showSeats)
-        .innerJoin(shows, eq(showSeats.showId, shows.id))
-        .innerJoin(seats, and(eq(showSeats.seatId, seats.id), eq(seats.venueId, shows.venueId)))
-        .where(eq(showSeats.showId, showId));
+      // Seed seats on first access (runs ensureShowSeats only when inventory is empty)
+      await ensureShowSeats(showId);
+      result = await seatQuery();
 
       if (!meta) {
         const refetchedMeta = await db
