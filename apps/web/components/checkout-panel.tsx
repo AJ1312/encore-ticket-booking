@@ -78,7 +78,7 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
             return;
           } catch {}
         }
-        apiJson<{ session: { id: string; name: string; email: string } }>('/auth/me')
+        apiJson<{ session: { id: string; name: string; email: string } | null }>(('/auth/me'))
           .then(res => {
             if (isMounted && res.session) {
               setUser(res.session);
@@ -112,6 +112,9 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
     }
 
     let isMounted = true;
+    // Track error state locally to avoid stale closure reads from setState
+    let hasError = false;
+
     void (async () => {
       try {
         if (showId) {
@@ -142,8 +145,7 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
               });
             }
           } else if (isUUID) {
-            // User requested: if issue fetching with backend, resolve with loading screen forever
-            // We just return and do not transition to 'ready'
+            // If issue fetching with backend, stay in loading screen
             return;
           }
 
@@ -158,6 +160,7 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
               body: JSON.stringify({ seatIds }),
             }).catch(err => {
               if (isMounted) {
+                hasError = true;
                 setState('error');
                 setMessage(err instanceof Error ? `Hold Conflict: ${err.message}. Please return to the seat map to select available seats.` : 'These seats are currently held by another customer.');
               }
@@ -173,12 +176,11 @@ export function CheckoutPanel({ eventId }: { eventId?: string }) {
             }
           }
         }
-        if (isMounted && state !== 'error') {
-          // Mock data fallback removed
+        if (isMounted && !hasError) {
           setState('ready');
         }
       } catch {
-        if (isMounted && state !== 'error') {
+        if (isMounted && !hasError) {
           if (isUUID) {
             // Keep it in loading screen
             return;

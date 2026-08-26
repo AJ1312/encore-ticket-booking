@@ -184,7 +184,9 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   const handleZoneRemove = (catName: string) => {
     const selectedInCategory = selected.filter(id => {
       const s = seats.find(seat => seat.id === id);
-      return s?.category === catName || (!s?.category && catName === 'Standard');
+      // Strict category matching: treat null/undefined category as 'Economy' (last tier)
+      const seatCat = s?.category || 'Economy';
+      return seatCat === catName;
     });
     if (selectedInCategory.length > 0) {
       const toRemove = selectedInCategory[selectedInCategory.length - 1];
@@ -244,7 +246,11 @@ export function SeatPicker({ eventId }: { eventId: string }) {
   }, [isDining, calculateSlotAvailability, diningDate, diningTime, diningArea, diningGuests]);
 
   useEffect(() => {
-    if (!isDining) return;
+    // Only auto-select seats for dining events; for regular events the user
+    // must explicitly click seats on the map/zone view (prevents E8/E9/E10 bug)
+    if (!isDining) {
+      return;
+    }
     if (diningAvailableCount > 0 && availableSeats.length >= diningGuests) {
       setSelected(availableSeats.slice(0, diningGuests).map(s => s.id));
     } else {
@@ -275,7 +281,14 @@ export function SeatPicker({ eventId }: { eventId: string }) {
     apiJson<{ seats: Seat[]; meta?: any }>(`/shows/${showId}/seats`)
       .then(result => {
         startTransition(() => {
-          setSeats(result.seats || []);
+          // Sort seats by row then number so Zone View always picks A1, A2...
+          // (not arbitrary DB insertion order which caused E8/E9/E10 default bug)
+          const sortedSeats = (result.seats || []).slice().sort((a, b) => {
+            if (a.row < b.row) return -1;
+            if (a.row > b.row) return 1;
+            return a.number - b.number;
+          });
+          setSeats(sortedSeats);
           if (result.meta) {
             const matched = staticEvent || encoreEvents.find(e => 
               (showId && (e.showId === showId || e.slug === showId)) || 
@@ -314,7 +327,7 @@ export function SeatPicker({ eventId }: { eventId: string }) {
 
   // Check active session
   useEffect(() => {
-    apiJson<{ session?: Session; user?: Session }>('/auth/me')
+    apiJson<{ session?: Session | null; user?: Session }>(('/auth/me'))
       .then(res => {
         const active = res.session || res.user;
         if (active) setUser(active);
