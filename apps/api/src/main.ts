@@ -1249,7 +1249,7 @@ export class AppController {
 
               for (const mu of missedUsers) {
                 // Reset to waiting so they can be notified again if another seat opens
-                await tx.update(waitlistEntries).set({ status: 'waiting', offeredAt: null, offerExpiresAt: null }).where(eq(waitlistEntries.id, mu.id));
+                await tx.update(waitlistEntries).set({ status: 'waiting', offeredAt: null, offerExpiresAt: null, offeredSeatIds: null }).where(eq(waitlistEntries.id, mu.id));
                 
                 await tx.insert(jobs).values({
                   type: 'email_notification',

@@ -300,7 +300,7 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
 }
 
 export async function allocateWaitlist(tx: any, showId: string, seatIds: string[]) {
-  const categoryCounts: Record<string, number> = {};
+  const categorySeats: Record<string, string[]> = {};
   for (const showSeatId of seatIds) {
     const seat = (await tx.select({ category: seats.category })
       .from(showSeats)
@@ -308,17 +308,19 @@ export async function allocateWaitlist(tx: any, showId: string, seatIds: string[
       .where(and(eq(showSeats.id, showSeatId), eq(showSeats.showId, showId), eq(showSeats.status, 'available')))
       .limit(1))[0];
     if (seat) {
-      categoryCounts[seat.category] = (categoryCounts[seat.category] || 0) + 1;
+      if (!categorySeats[seat.category]) categorySeats[seat.category] = [];
+      categorySeats[seat.category].push(showSeatId);
     }
   }
 
-  const categories = Object.keys(categoryCounts);
+  const categories = Object.keys(categorySeats);
   if (categories.length === 0) return;
 
   const eventDetails = (await tx.select({ title: events.title }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, showId)).limit(1))[0];
 
   for (const category of categories) {
-    const count = categoryCounts[category];
+    const availableSeatIds = categorySeats[category];
+    const count = availableSeatIds.length;
     const waitingUsers = await tx.select({ id: waitlistEntries.id, userId: waitlistEntries.userId, email: users.email })
       .from(waitlistEntries)
       .innerJoin(users, eq(users.id, waitlistEntries.userId))
@@ -328,9 +330,12 @@ export async function allocateWaitlist(tx: any, showId: string, seatIds: string[
       .for('update', { skipLocked: true });
 
     for (const waitlistUser of waitingUsers) {
+      const assignedSeatId = availableSeatIds.shift();
+      const offeredSeatIds = assignedSeatId ? [assignedSeatId] : [];
+      
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
       await tx.update(waitlistEntries)
-        .set({ status: 'offered', offeredAt: new Date(), offerExpiresAt: expiresAt })
+        .set({ status: 'offered', offeredAt: new Date(), offerExpiresAt: expiresAt, offeredSeatIds })
         .where(eq(waitlistEntries.id, waitlistUser.id));
 
       if (eventDetails) {
