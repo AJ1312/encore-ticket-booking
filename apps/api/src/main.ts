@@ -1097,6 +1097,8 @@ export class AppController {
           .update(showSeats)
           .set({ status: 'available', heldByUserId: null, heldUntil: null, heldPricePaise: null, version: sql`${showSeats.version}+1` })
           .where(and(inArray(showSeats.id, seatsToRelease.map(s => s.showSeatId)), eq(showSeats.status, 'booked')));
+          
+        await tx.delete(bookingSeats).where(eq(bookingSeats.bookingId, booking.id));
       }
 
       const showDetails = (await tx.select({ title: events.title }).from(shows).innerJoin(events, eq(events.id, shows.eventId)).where(eq(shows.id, booking.showId)).limit(1))[0];
@@ -1264,7 +1266,7 @@ export class AppController {
           }
         }
 
-        await tx.insert(jobs).values({ type: 'booking_confirmation', payload: { bookingId: created.id } });
+        await tx.insert(jobs).values({ type: 'booking_confirmation', payload: { bookingId: created.id, qrToken: qrRaw } });
         return { ...created, qrToken: qrRaw, isIdempotent: false };
       });
     } catch (e: any) {

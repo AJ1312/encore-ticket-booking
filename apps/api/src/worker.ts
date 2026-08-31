@@ -206,7 +206,9 @@ export async function handleJob(job: typeof jobs.$inferSelect) {
           <a href="${baseUrl}/booking/${payload.bookingRef}/confirmation" class="button">View Live Pass</a>
         `, icons.bell);
       } else {
-        const qrTargetUrl = `${baseUrl}/verify/${payload.bookingRef}`;
+        const qrTargetUrl = payload.qrToken 
+          ? `${baseUrl}/verify/${payload.bookingRef}?token=${payload.qrToken}`
+          : `${baseUrl}/verify/${payload.bookingRef}`;
         const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrTargetUrl)}&margin=2`;
         html = wrap(`<h1>Pass <em>Ready</em></h1>`, `
           <p>Your ticket pass is confirmed for:</p>
